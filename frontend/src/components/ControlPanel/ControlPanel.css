@@ -1,0 +1,297 @@
+.control-panel {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow);
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}
+
+.control-panel h2 {
+  margin: 0;
+  padding: 0.875rem 1rem;
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 600;
+  border-bottom: 1px solid var(--border-color);
+  background: var(--surface-hover);
+  flex-shrink: 0;
+}
+
+.control-panel h3 {
+  margin: 0 0 0.75rem 0;
+  color: var(--primary-color);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.control-panel h4 {
+  margin: 0 0 0.5rem 0;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+/* Initialize Form */
+.init-form-container {
+  padding: 1rem;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.init-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.form-group label {
+  font-weight: 500;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+}
+
+.form-group input {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  transition: border-color var(--transition);
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+  box-shadow: 0 0 0 3px rgba(16, 163, 127, 0.1);
+}
+
+.form-group select {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  background: var(--surface);
+  cursor: pointer;
+  transition: border-color var(--transition);
+}
+
+.form-group select:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+.form-group select:disabled {
+  background: var(--background);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* Buttons */
+button {
+  padding: 0.5rem 1rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--primary-hover);
+}
+
+.btn-secondary {
+  background: var(--info);
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #2563eb;
+}
+
+.btn-warning {
+  background: var(--warning);
+  color: white;
+}
+
+.btn-warning:hover:not(:disabled) {
+  background: #d97706;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.btn-danger {
+  background: var(--error);
+  color: white;
+}
+
+.btn-danger:hover:not(:disabled) {
+  background: #dc2626;
+}
+
+.btn-success {
+  background: var(--success);
+  color: white;
+}
+
+.btn-success:hover:not(:disabled) {
+  background: #059669;
+}
+
+/* Cluster Controls */
+.cluster-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow-y: auto;
+  flex: 1;
+  min-height: 0;
+}
+
+.control-section {
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.control-section:last-child {
+  border-bottom: none;
+}
+
+.control-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.info-text {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin: 0.125rem 0;
+}
+
+.info-text strong {
+  color: var(--primary-color);
+}
+
+/* Messages */
+.error-message {
+  padding: 0.5rem 0.75rem;
+  background: var(--error-bg);
+  color: #991b1b;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  margin-top: 0.375rem;
+  border: 1px solid #fecaca;
+}
+
+.success-message {
+  padding: 0.5rem 0.75rem;
+  background: var(--success-bg);
+  color: #065f46;
+  border-radius: var(--radius);
+  font-size: 0.75rem;
+  margin-top: 0.375rem;
+  border: 1px solid #a7f3d0;
+}
+
+/* Button Group */
+.button-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.375rem;
+}
+
+.button-group button {
+  flex: 1;
+  min-width: fit-content;
+}
+
+/* Network Partition Controls */
+.partition-groups {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin: 0.5rem 0;
+}
+
+.partition-group {
+  flex: 1;
+  background: var(--background);
+  padding: 0.625rem;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-color);
+}
+
+.partition-group h5 {
+  margin: 0 0 0.5rem 0;
+  color: var(--primary-color);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.node-checkboxes {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  cursor: pointer;
+  padding: 0.25rem 0.375rem;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition);
+}
+
+.checkbox-label:hover {
+  background: var(--surface);
+}
+
+.checkbox-label input[type="checkbox"] {
+  cursor: pointer;
+  width: 14px;
+  height: 14px;
+}
+
+.group-count {
+  margin: 0.5rem 0 0 0;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.partition-divider {
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0 0.25rem;
+}

@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/logo.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NoSqlSim - MongoDB Replication & Consistency Simulator</title>
+    <!-- Suppress browser extension errors -->
+    <script>
+      // Prevent "message port closed" errors from browser extensions
+      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.connect) {
+        const originalConnect = chrome.runtime.connect;
+        chrome.runtime.connect = function(...args) {
+          try {
+            return originalConnect.apply(this, args);
+          } catch (e) {
+            return { postMessage: () => {}, disconnect: () => {} };
+          }
+        };
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

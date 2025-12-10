@@ -1,0 +1,60 @@
+version: '3.8'
+
+services:
+  mongo1:
+    image: mongo:7.0
+    container_name: nosqlsim-rs0-node1
+    hostname: mongo1
+    command: mongod --replSet rs0 --bind_ip_all --port 27017
+    ports:
+      - "27017:27017"
+    networks:
+      - nosqlsim_default
+    environment:
+      - MONGO_INITDB_DATABASE=admin
+    volumes:
+      - mongo1_data:/data/db
+    mem_limit: 512m
+    restart: unless-stopped
+
+  mongo2:
+    image: mongo:7.0
+    container_name: nosqlsim-rs0-node2
+    hostname: mongo2
+    command: mongod --replSet rs0 --bind_ip_all --port 27017
+    ports:
+      - "27018:27017"
+    networks:
+      - nosqlsim_default
+    environment:
+      - MONGO_INITDB_DATABASE=admin
+    volumes:
+      - mongo2_data:/data/db
+    mem_limit: 512m
+    restart: unless-stopped
+
+  mongo3:
+    image: mongo:7.0
+    container_name: nosqlsim-rs0-node3
+    hostname: mongo3
+    command: mongod --replSet rs0 --bind_ip_all --port 27017
+    ports:
+      - "27019:27017"
+    networks:
+      - nosqlsim_default
+    environment:
+      - MONGO_INITDB_DATABASE=admin
+    volumes:
+      - mongo3_data:/data/db
+    mem_limit: 512m
+    restart: unless-stopped
+
+networks:
+  nosqlsim_default:
+    name: nosqlsim_default
+    driver: bridge
+
+volumes:
+  mongo1_data:
+  mongo2_data:
+  mongo3_data:
