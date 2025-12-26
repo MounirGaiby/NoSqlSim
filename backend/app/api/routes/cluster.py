@@ -11,6 +11,7 @@ from app.models.cluster import (
 )
 from app.services.docker_manager import docker_manager
 from app.services.cluster_manager import get_cluster_manager
+from app.websocket.broadcaster import broadcaster
 
 router = APIRouter()
 
@@ -27,6 +28,10 @@ async def initialize_cluster(request: InitClusterRequest):
             node_count=request.node_count,
             starting_port=request.starting_port
         )
+
+        # Immediately broadcast updated cluster state
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
 
         return {
             "success": True,
@@ -66,6 +71,10 @@ async def add_node(request: AddNodeRequest):
             priority=request.priority
         )
 
+        # Immediately broadcast updated cluster state
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
+
         return {
             "success": True,
             "message": f"Added {request.role} node to replica set '{request.replica_set_name}'",
@@ -80,6 +89,10 @@ async def remove_node(node_id: str, replica_set_name: str):
     """Remove a node from a replica set"""
     try:
         success = await cluster_mgr.remove_member(replica_set_name, node_id)
+
+        # Immediately broadcast updated cluster state
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
 
         return {
             "success": success,
@@ -97,6 +110,10 @@ async def step_down_primary(request: StepDownRequest):
             replica_set_name=request.replica_set_name,
             step_down_secs=request.step_down_secs
         )
+
+        # Immediately broadcast updated cluster state
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
 
         return {
             "success": success,

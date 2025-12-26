@@ -8,6 +8,7 @@ import {
   WriteConcernLevel,
   ReadPreferenceMode,
 } from '../../types/query'
+import { Tooltip } from '../Tooltip/Tooltip'
 import './QueryInterface.css'
 
 interface QueryInterfaceProps {
@@ -228,9 +229,11 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
               <div className="form-group">
                 <label>
                   Read Concern
-                  <span className="help-text">
-                    Controls the consistency of read operations
-                  </span>
+                  <Tooltip
+                    content="Controls data freshness: 'local' is fastest but may return stale data, 'majority' ensures data won't be rolled back, 'linearizable' is slowest but guarantees the absolute latest data."
+                    position="right"
+                    maxWidth="300px"
+                  />
                 </label>
                 <select
                   value={readConcern}
@@ -246,9 +249,11 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
               <div className="form-group">
                 <label>
                   Read Preference
-                  <span className="help-text">
-                    Determines which replica set members to read from
-                  </span>
+                  <Tooltip
+                    content="Choose which nodes to read from: 'primary' always reads from leader (most consistent), 'secondary' offloads reads to followers (may be stale), 'nearest' picks lowest latency node."
+                    position="right"
+                    maxWidth="300px"
+                  />
                 </label>
                 <select
                   value={readPreference}
@@ -268,9 +273,11 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
             <div className="form-group">
               <label>
                 Write Concern
-                <span className="help-text">
-                  Controls acknowledgment of write operations
-                </span>
+                <Tooltip
+                  content="Controls write durability: 'w:0' is fastest but unsafe (no ack), 'w:1' waits for primary ack, 'w:majority' waits for majority ack (safest, prevents data loss during failover)."
+                  position="right"
+                  maxWidth="300px"
+                />
               </label>
               <select
                 value={writeConcern}

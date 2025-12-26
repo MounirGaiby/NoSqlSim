@@ -9,6 +9,7 @@ from app.api.routes import cluster, queries, failures
 from app.websocket.broadcaster import broadcaster
 from app.services.docker_manager import docker_manager
 from app.services.cluster_manager import cluster_manager
+from app.services.log_streamer import get_log_streamer
 
 # Configure logging
 logging.basicConfig(
@@ -61,6 +62,10 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"Failed to cleanup leftover resources: {e}")
 
+    # Startup: Initialize log streamer
+    log_streamer = get_log_streamer(docker_manager, broadcaster)
+    logger.info("LogStreamer initialized")
+
     # Startup: Start background monitoring task
     background_task = asyncio.create_task(monitor_cluster_state())
     logger.info("Background cluster monitoring started")
@@ -76,7 +81,13 @@ async def lifespan(app: FastAPI):
             await background_task
         except asyncio.CancelledError:
             logger.info("Background task cancelled successfully")
-    
+
+    # Shutdown: Stop log streamer
+    try:
+        await log_streamer.shutdown()
+    except Exception as e:
+        logger.error(f"Failed to shutdown log streamer: {e}")
+
     # Cleanup Docker resources
     try:
         await docker_manager.cleanup_all()
@@ -131,24 +142,52 @@ async def health():
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for real-time cluster state updates"""
+    """WebSocket endpoint for real-time cluster state updates and log streaming"""
     await broadcaster.connect(websocket)
     logger.info(f"WebSocket client connected. Total connections: {broadcaster.get_connection_count()}")
+
+    # Get log streamer instance
+    log_streamer = get_log_streamer(docker_manager, broadcaster)
+    subscriber_id = str(id(websocket))
 
     try:
         # Keep connection alive and handle incoming messages
         while True:
-            # Wait for messages from client (for potential future use)
+            # Wait for messages from client
             data = await websocket.receive_text()
             logger.debug(f"Received WebSocket message: {data}")
 
-            # Could handle client subscriptions, filters, etc. here in the future
+            try:
+                # Parse message as JSON
+                import json
+                message = json.loads(data)
+
+                # Handle log subscription messages
+                if message.get("action") == "subscribe_logs":
+                    node_id = message.get("node_id")
+                    if node_id:
+                        await log_streamer.subscribe(node_id, subscriber_id)
+                        logger.info(f"Client subscribed to logs for {node_id}")
+
+                elif message.get("action") == "unsubscribe_logs":
+                    node_id = message.get("node_id")
+                    if node_id:
+                        await log_streamer.unsubscribe(node_id, subscriber_id)
+                        logger.info(f"Client unsubscribed from logs for {node_id}")
+
+            except json.JSONDecodeError:
+                logger.warning(f"Received invalid JSON from WebSocket: {data}")
+            except Exception as e:
+                logger.error(f"Error handling WebSocket message: {e}")
 
     except WebSocketDisconnect:
+        # Cleanup log subscriptions for this client
+        await log_streamer.cleanup_subscriber(subscriber_id)
         await broadcaster.disconnect(websocket)
         logger.info(f"WebSocket client disconnected. Total connections: {broadcaster.get_connection_count()}")
     except Exception as e:
         logger.error(f"WebSocket error: {e}")
+        await log_streamer.cleanup_subscriber(subscriber_id)
         await broadcaster.disconnect(websocket)
 
 

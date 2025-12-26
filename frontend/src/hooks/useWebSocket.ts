@@ -13,6 +13,8 @@ interface UseWebSocketReturn {
   clusterState: ReplicaSetStatus | null
   sendMessage: (message: string) => void
   reconnect: () => void
+  subscribeToNodeLogs: (nodeId: string, callback: (logs: string) => void) => void
+  unsubscribeFromNodeLogs: (nodeId: string) => void
 }
 
 const WS_URL = import.meta.env.DEV
@@ -32,7 +34,10 @@ export function useWebSocket(onStateUpdate?: (state: ReplicaSetStatus) => void):
   const reconnectAttemptsRef = useRef(0)
   const shouldReconnectRef = useRef(true)
   const isConnectingRef = useRef(false)
-  
+
+  // Track log callbacks for each node
+  const logCallbacksRef = useRef<Map<string, (logs: string) => void>>(new Map())
+
   // Store callback in ref to avoid dependency changes causing reconnections
   const onStateUpdateRef = useRef(onStateUpdate)
   useEffect(() => {
@@ -85,6 +90,12 @@ export function useWebSocket(onStateUpdate?: (state: ReplicaSetStatus) => void):
           if (onStateUpdateRef.current) {
             onStateUpdateRef.current(state)
           }
+        } else if (message.type === 'node_logs' && message.payload) {
+          const { node_id, logs } = message.payload
+          const callback = logCallbacksRef.current.get(node_id)
+          if (callback) {
+            callback(logs)
+          }
         }
       } catch (error) {
         console.error('[WebSocket] Error parsing message:', error)
@@ -132,21 +143,49 @@ export function useWebSocket(onStateUpdate?: (state: ReplicaSetStatus) => void):
     console.log('[WebSocket] Manual reconnect triggered')
     reconnectAttemptsRef.current = 0
     isConnectingRef.current = false // Reset connecting state for manual reconnect
-    
+
     // Close existing connection first
     if (wsRef.current) {
       wsRef.current.close()
       wsRef.current = null
     }
-    
+
     // Clear any pending reconnect timeout
     if (reconnectTimeoutRef.current) {
       clearTimeout(reconnectTimeoutRef.current)
       reconnectTimeoutRef.current = null
     }
-    
+
     connect()
   }, [connect])
+
+  const subscribeToNodeLogs = useCallback((nodeId: string, callback: (logs: string) => void) => {
+    console.log(`[WebSocket] Subscribing to logs for ${nodeId}`)
+
+    // Store callback
+    logCallbacksRef.current.set(nodeId, callback)
+
+    // Send subscription message
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const message = JSON.stringify({ action: 'subscribe_logs', node_id: nodeId })
+      wsRef.current.send(message)
+    } else {
+      console.warn('[WebSocket] Cannot subscribe: not connected')
+    }
+  }, [])
+
+  const unsubscribeFromNodeLogs = useCallback((nodeId: string) => {
+    console.log(`[WebSocket] Unsubscribing from logs for ${nodeId}`)
+
+    // Remove callback
+    logCallbacksRef.current.delete(nodeId)
+
+    // Send unsubscription message
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      const message = JSON.stringify({ action: 'unsubscribe_logs', node_id: nodeId })
+      wsRef.current.send(message)
+    }
+  }, [])
 
   // Connect on mount - only once
   useEffect(() => {
@@ -191,5 +230,7 @@ export function useWebSocket(onStateUpdate?: (state: ReplicaSetStatus) => void):
     clusterState,
     sendMessage,
     reconnect,
+    subscribeToNodeLogs,
+    unsubscribeFromNodeLogs,
   }
 }

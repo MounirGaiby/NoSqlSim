@@ -11,11 +11,14 @@ from app.models.failure import (
 )
 from app.services.docker_manager import docker_manager
 from app.services.failure_simulator import get_failure_simulator
+from app.services.cluster_manager import get_cluster_manager
+from app.websocket.broadcaster import broadcaster
 
 router = APIRouter()
 
-# Get failure simulator instance
+# Get failure simulator and cluster manager instances
 failure_sim = get_failure_simulator(docker_manager)
+cluster_mgr = get_cluster_manager(docker_manager)
 
 
 @router.post("/crash", response_model=FailureResponse)
@@ -26,6 +29,10 @@ async def crash_node(request: CrashNodeRequest):
             node_id=request.node_id,
             crash_type=request.crash_type
         )
+
+        # Immediately broadcast updated cluster state
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
 
         return FailureResponse(
             success=True,
@@ -48,6 +55,10 @@ async def restore_node(request: RestoreNodeRequest):
                 status_code=500,
                 detail=f"Failed to restore node '{request.node_id}'"
             )
+
+        # Immediately broadcast updated cluster state
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
 
         return FailureResponse(
             success=True,

@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clusterApi } from '../../api/cluster'
 import { failuresApi } from '../../api/failures'
+import { useWebSocket } from '../../hooks/useWebSocket'
 import type { InitClusterRequest, MemberStatus } from '../../types/cluster'
 import './ControlPanel.css'
 
@@ -13,12 +14,18 @@ interface ControlPanelProps {
 
 export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: ControlPanelProps) {
   const queryClient = useQueryClient()
+  const { subscribeToNodeLogs, unsubscribeFromNodeLogs, isConnected } = useWebSocket()
   const [showInitForm, setShowInitForm] = useState(!hasCluster)
   const [selectedNode, setSelectedNode] = useState<string>('')
-  
+
   // Logs state
   const [logsNodeId, setLogsNodeId] = useState<string>('')
   const [logs, setLogs] = useState<string>('')
+  const [autoScroll, setAutoScroll] = useState(true)
+  const logsContainerRef = useRef<HTMLDivElement>(null)
+
+  // Node type for adding
+  const [nodeType, setNodeType] = useState<'replica' | 'arbiter'>('replica')
 
   // Partition state
   const [partitionGroupA, setPartitionGroupA] = useState<string[]>([])
@@ -45,11 +52,13 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
     mutationFn: () =>
       clusterApi.addNode({
         replica_set_name: replicaSetName!,
-        role: 'replica',
-        priority: 1,
+        role: nodeType,
+        priority: nodeType === 'replica' ? 1 : 0,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cluster-status'] })
+      // Reset to replica for next addition
+      setNodeType('replica')
     },
   })
 
@@ -128,13 +137,40 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
     },
   })
 
-  // Fetch logs mutation
-  const fetchLogsMutation = useMutation({
-    mutationFn: (nodeId: string) => clusterApi.getNodeLogs(nodeId),
-    onSuccess: (data) => {
-      setLogs(data.logs)
-    },
-  })
+  // Subscribe to logs when modal is open
+  useEffect(() => {
+    if (logs && logsNodeId) {
+      // Modal is open, subscribe to logs
+      subscribeToNodeLogs(logsNodeId, (newLogs: string) => {
+        setLogs(newLogs)
+      })
+
+      return () => {
+        // Cleanup: unsubscribe when modal closes
+        unsubscribeFromNodeLogs(logsNodeId)
+      }
+    }
+  }, [logs && logsNodeId]) // Re-subscribe if node changes
+
+  // Auto-scroll to bottom when new logs arrive
+  useEffect(() => {
+    if (autoScroll && logsContainerRef.current) {
+      logsContainerRef.current.scrollTop = logsContainerRef.current.scrollHeight
+    }
+  }, [logs, autoScroll])
+
+  // Handle user scrolling (disable auto-scroll if user scrolls up)
+  const handleLogsScroll = () => {
+    if (logsContainerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = logsContainerRef.current
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 10
+      if (!isAtBottom && autoScroll) {
+        setAutoScroll(false)
+      } else if (isAtBottom && !autoScroll) {
+        setAutoScroll(true)
+      }
+    }
+  }
 
   const handleInitSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -248,12 +284,23 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
 
           <div className="control-section">
             <h4>Node Management</h4>
+            <div className="form-group">
+              <label>Node Type</label>
+              <select
+                value={nodeType}
+                onChange={(e) => setNodeType(e.target.value as 'replica' | 'arbiter')}
+                disabled={addNodeMutation.isPending}
+              >
+                <option value="replica">Secondary (Data-bearing)</option>
+                <option value="arbiter">Arbiter (Vote-only)</option>
+              </select>
+            </div>
             <button
               onClick={() => addNodeMutation.mutate()}
               disabled={addNodeMutation.isPending || !replicaSetName}
               className="btn-secondary"
             >
-              {addNodeMutation.isPending ? 'Adding...' : 'Add Secondary Node'}
+              {addNodeMutation.isPending ? 'Adding...' : `Add ${nodeType === 'arbiter' ? 'Arbiter' : 'Secondary'} Node`}
             </button>
 
             {addNodeMutation.isError && (
@@ -439,12 +486,22 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
                     ))}
                 </select>
             </div>
-            <button 
-                onClick={() => logsNodeId && fetchLogsMutation.mutate(logsNodeId)}
-                disabled={!logsNodeId || fetchLogsMutation.isPending}
+            <button
+                onClick={async () => {
+                  if (logsNodeId) {
+                    // Fetch initial logs then open modal
+                    try {
+                      const data = await clusterApi.getNodeLogs(logsNodeId)
+                      setLogs(data.logs)
+                    } catch (error: any) {
+                      alert(`Failed to fetch logs: ${error.message}`)
+                    }
+                  }
+                }}
+                disabled={!logsNodeId || !isConnected}
                 className="btn-secondary"
             >
-                {fetchLogsMutation.isPending ? 'Fetching...' : 'View Logs'}
+                View Logs
             </button>
           </div>
 
@@ -460,14 +517,30 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
                   <div className="logs-container">
                     <div className="logs-header">
                       <h4>Container Output</h4>
-                      <button 
-                        className="btn-sm btn-ghost"
-                        onClick={() => logsNodeId && fetchLogsMutation.mutate(logsNodeId)}
-                      >
-                        Refresh
-                      </button>
+                      <div className="logs-controls">
+                        {isConnected && (
+                          <span className="streaming-indicator">
+                            <span className="streaming-dot"></span>
+                            Live
+                          </span>
+                        )}
+                        <label className="auto-scroll-toggle">
+                          <input
+                            type="checkbox"
+                            checked={autoScroll}
+                            onChange={(e) => setAutoScroll(e.target.checked)}
+                          />
+                          Auto-scroll
+                        </label>
+                      </div>
                     </div>
-                    <div className="logs-content">{logs}</div>
+                    <div
+                      ref={logsContainerRef}
+                      className="logs-content"
+                      onScroll={handleLogsScroll}
+                    >
+                      {logs}
+                    </div>
                   </div>
                 </div>
                 <div className="modal-footer">

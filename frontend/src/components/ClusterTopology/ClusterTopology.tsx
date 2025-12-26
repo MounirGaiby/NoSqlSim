@@ -15,26 +15,14 @@ interface ClusterTopologyProps {
   height?: number
 }
 
-type SpeedMode = 0.25 | 0.5 | 1 | 2 | 4
-
-const SPEED_OPTIONS: { value: SpeedMode; label: string }[] = [
-  { value: 0.25, label: '0.25x' },
-  { value: 0.5, label: '0.5x' },
-  { value: 1, label: '1x' },
-  { value: 2, label: '2x' },
-  { value: 4, label: '4x' },
-]
-
 export function ClusterTopology({ replicaSet, width = 700, height = 450 }: ClusterTopologyProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const animationRef = useRef<number | null>(null)
   const [hoveredNode, setHoveredNode] = useState<MemberStatus | null>(null)
   const [selectedNode, setSelectedNode] = useState<MemberStatus | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
-  
-  // Speed and animation controls
-  const [speed, setSpeed] = useState<SpeedMode>(1)
-  const [isPaused, setIsPaused] = useState(false)
+
+  // Animation controls
   const [showHeartbeats, setShowHeartbeats] = useState(true)
   const [showReplication, setShowReplication] = useState(true)
   
@@ -107,7 +95,7 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
 
   // Animation loop
   useEffect(() => {
-    if (!replicaSet || isPaused) {
+    if (!replicaSet) {
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current)
         animationRef.current = null
@@ -116,9 +104,9 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
     }
 
     let lastTime = performance.now()
-    
+
     const animate = (currentTime: number) => {
-      const deltaTime = (currentTime - lastTime) * speed
+      const deltaTime = currentTime - lastTime
       lastTime = currentTime
 
       setAnimationState(prev => {
@@ -168,7 +156,7 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [replicaSet, speed, isPaused, showHeartbeats, showReplication, generateReplicationFlows])
+  }, [replicaSet, showHeartbeats, showReplication, generateReplicationFlows])
 
   // Draw canvas
   useEffect(() => {
@@ -257,30 +245,6 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
           )}
         </div>
         
-        {replicaSet && (
-          <div className="header-controls">
-            <div className="speed-control">
-              <label>Speed:</label>
-              <div className="speed-buttons">
-                {SPEED_OPTIONS.map(opt => (
-                  <button
-                    key={opt.value}
-                    className={`speed-btn ${speed === opt.value ? 'active' : ''}`}
-                    onClick={() => setSpeed(opt.value)}
-                  >
-                    {opt.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <button 
-              className={`control-btn ${isPaused ? 'paused' : ''}`}
-              onClick={() => setIsPaused(!isPaused)}
-            >
-              {isPaused ? '▶ Play' : '⏸ Pause'}
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="canvas-container">

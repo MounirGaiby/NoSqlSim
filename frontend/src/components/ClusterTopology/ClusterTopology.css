@@ -69,78 +69,6 @@
   color: #991b1b;
 }
 
-/* Header Controls */
-.header-controls {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-}
-
-.speed-control {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.speed-control label {
-  font-size: 0.75rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-.speed-buttons {
-  display: flex;
-  gap: 2px;
-  background: var(--background);
-  padding: 2px;
-  border-radius: var(--radius);
-}
-
-.speed-btn {
-  padding: 0.25rem 0.5rem;
-  font-size: 0.7rem;
-  border: none;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  border-radius: var(--radius-sm);
-  transition: all var(--transition-fast);
-  font-weight: 500;
-}
-
-.speed-btn:hover {
-  background: var(--surface);
-  color: var(--text-primary);
-}
-
-.speed-btn.active {
-  background: var(--primary-color);
-  color: white;
-}
-
-.control-btn {
-  padding: 0.35rem 0.75rem;
-  font-size: 0.75rem;
-  border: 1px solid var(--border-color);
-  background: var(--surface);
-  color: var(--text-primary);
-  cursor: pointer;
-  border-radius: var(--radius);
-  transition: all var(--transition-fast);
-  font-weight: 500;
-}
-
-.control-btn:hover {
-  background: var(--background);
-  border-color: var(--primary-color);
-}
-
-.control-btn.paused {
-  background: var(--primary-color);
-  color: white;
-  border-color: var(--primary-color);
-}
-
 /* Canvas Container */
 .canvas-container {
   position: relative;
@@ -498,12 +426,7 @@
     flex-direction: column;
     align-items: flex-start;
   }
-  
-  .header-controls {
-    width: 100%;
-    justify-content: space-between;
-  }
-  
+
   .animation-controls {
     flex-direction: column;
     gap: 0.5rem;
@@ -511,7 +434,7 @@
     bottom: 0.75rem;
     right: 0.75rem;
   }
-  
+
   .control-group {
     width: 100%;
     justify-content: center;

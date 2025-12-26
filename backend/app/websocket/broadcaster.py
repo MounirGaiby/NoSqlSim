@@ -139,6 +139,41 @@ class StateBroadcaster:
         for connection in disconnected:
             await self.disconnect(connection)
 
+    async def broadcast_node_logs(self, node_id: str, logs: str):
+        """
+        Broadcast node logs to all connected clients
+
+        Args:
+            node_id: ID of the node
+            logs: Log content to broadcast
+        """
+        if not self.active_connections:
+            return
+
+        message = {
+            "type": "node_logs",
+            "timestamp": datetime.utcnow().isoformat(),
+            "payload": {
+                "node_id": node_id,
+                "logs": logs
+            }
+        }
+
+        message_json = json.dumps(message, default=str)
+
+        # Send to all connections
+        disconnected = set()
+        for connection in self.active_connections:
+            try:
+                await connection.send_text(message_json)
+            except Exception as e:
+                logger.error(f"Error sending to WebSocket: {e}")
+                disconnected.add(connection)
+
+        # Clean up disconnected connections
+        for connection in disconnected:
+            await self.disconnect(connection)
+
     async def subscribe(self, websocket: WebSocket, topic: str):
         """
         Subscribe a WebSocket to a specific topic

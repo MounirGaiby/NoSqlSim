@@ -308,9 +308,34 @@ class ClusterManager:
         # Wait for container to start
         await asyncio.sleep(3)
 
-        # Get current replica set config
-        primary_node = nodes[0]
+        # Get current replica set status to find the primary
+        status = await self.get_replica_set_status(replica_set_name)
+        if not status.primary:
+            raise ValueError("No primary node found - cannot add member without a primary")
+
+        # Find the primary node config
+        primary_node = None
+        for node in nodes:
+            if node.node_id == status.primary:
+                primary_node = node
+                break
+
+        if not primary_node:
+            raise ValueError(f"Primary node '{status.primary}' not found in configuration")
+
+        # Get current replica set config from primary
         client = self._get_mongo_client(primary_node.host, primary_node.port)
+
+        # Set default write concern if adding an arbiter (required for MongoDB 7.0+)
+        if role == "arbiter":
+            try:
+                client.admin.command({
+                    "setDefaultRWConcern": 1,
+                    "defaultWriteConcern": {"w": "majority"}
+                })
+                logger.info("Set default write concern for arbiter addition")
+            except Exception as e:
+                logger.warning(f"Failed to set default write concern: {e}")
 
         config = client.admin.command("replSetGetConfig")["config"]
         version = config["version"]
@@ -319,12 +344,18 @@ class ClusterManager:
         hostname = self.docker_manager.get_node_connection_string(node_id)
         new_member_id = max([m["_id"] for m in config["members"]]) + 1
 
-        config["members"].append({
+        new_member = {
             "_id": new_member_id,
             "host": hostname,
             "priority": priority if role == "replica" else 0,
-            "votes": 1 if role == "replica" else 1
-        })
+            "votes": 1
+        }
+
+        # Add arbiterOnly flag for arbiters
+        if role == "arbiter":
+            new_member["arbiterOnly"] = True
+
+        config["members"].append(new_member)
         config["version"] = version + 1
 
         # Reconfigure replica set
@@ -372,8 +403,22 @@ class ClusterManager:
 
         logger.info(f"Removing node {node_id} from replica set '{replica_set_name}'")
 
+        # Get current replica set status to find the primary
+        status = await self.get_replica_set_status(replica_set_name)
+        if not status.primary:
+            raise ValueError("No primary node found - cannot remove member without a primary")
+
+        # Find the primary node config
+        primary_node = None
+        for node in nodes:
+            if node.node_id == status.primary:
+                primary_node = node
+                break
+
+        if not primary_node:
+            raise ValueError(f"Primary node '{status.primary}' not found in configuration")
+
         # Get primary connection
-        primary_node = nodes[0]
         client = self._get_mongo_client(primary_node.host, primary_node.port)
 
         # Get current config
