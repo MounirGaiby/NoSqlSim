@@ -84,7 +84,8 @@ class ClusterManager:
         self,
         replica_set_name: str,
         node_count: int = 3,
-        starting_port: int = None
+        starting_port: int = None,
+        election_timeout_millis: int = 10000
     ) -> ReplicaSetStatus:
         """
         Initialize a new replica set
@@ -93,6 +94,7 @@ class ClusterManager:
             replica_set_name: Name of the replica set
             node_count: Number of nodes to create
             starting_port: Starting port number (optional)
+            election_timeout_millis: Election timeout in milliseconds (optional)
 
         Returns:
             ReplicaSetStatus: Status of the initialized replica set
@@ -141,7 +143,10 @@ class ClusterManager:
             # Build replica set configuration
             rs_config = {
                 "_id": replica_set_name,
-                "members": []
+                "members": [],
+                "settings": {
+                    "electionTimeoutMillis": election_timeout_millis
+                }
             }
 
             for idx, node in enumerate(nodes):

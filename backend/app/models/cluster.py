@@ -100,6 +100,12 @@ class InitClusterRequest(BaseModel):
         ge=1024,
         le=65535
     )
+    election_timeout_millis: int = Field(
+        default=10000,
+        description="Election timeout in milliseconds (higher = slower elections)",
+        ge=5000,
+        le=60000
+    )
 
 
 class AddNodeRequest(BaseModel):

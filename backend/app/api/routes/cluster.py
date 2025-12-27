@@ -26,7 +26,8 @@ async def initialize_cluster(request: InitClusterRequest):
         status = await cluster_mgr.initialize_replica_set(
             replica_set_name=request.replica_set_name,
             node_count=request.node_count,
-            starting_port=request.starting_port
+            starting_port=request.starting_port,
+            election_timeout_millis=request.election_timeout_millis
         )
 
         # Immediately broadcast updated cluster state
