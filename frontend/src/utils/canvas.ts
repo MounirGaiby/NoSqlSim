@@ -546,12 +546,32 @@ export function drawClusterTopology(
     )
   }
 
+  // Draw vote animations during election
+  if (animationState?.electionInProgress && animationState?.votes && animationState.votes.size > 0) {
+    animationState.votes.forEach((candidateId, voterId) => {
+      const voterPos = positions.find(p => p.node.node_id === voterId)
+      const candidatePos = positions.find(p => p.node.node_id === candidateId)
+
+      if (voterPos && candidatePos) {
+        const voteAnim: VoteAnimation = {
+          from: { x: voterPos.x, y: voterPos.y },
+          to: { x: candidatePos.x, y: candidatePos.y },
+          progress: 0.5, // Middle of the animation
+          voter: voterId,
+          candidate: candidateId,
+        }
+        drawVoteAnimation(ctx, voteAnim)
+      }
+    })
+  }
+
   // Draw nodes on top of connections
   positions.forEach(({ x, y, node }) => {
     const isPrimary = node.node_id === primary || node.name === primary
-    const isVoting = animationState?.votingNode === node.node_id
+    // Mark node as voting if it's participating in an election
+    const isVoting = animationState?.electionInProgress && animationState?.votes?.has(node.node_id)
     const heartbeat = animationState?.heartbeats?.get(node.node_id) || 0
-    drawNode(ctx, x, y, node, isPrimary, isVoting, heartbeat)
+    drawNode(ctx, x, y, node, isPrimary, isVoting || false, heartbeat)
   })
 
   // Draw timestamp

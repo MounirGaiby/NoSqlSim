@@ -3,10 +3,9 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   border: 1px solid var(--border-color);
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
-  max-height: 100%;
 }
 
 .control-panel h2 {
@@ -37,9 +36,6 @@
 /* Initialize Form */
 .init-form-container {
   padding: 1rem;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
 }
 
 .init-form {
@@ -161,9 +157,6 @@ button:disabled {
   display: flex;
   flex-direction: column;
   gap: 0;
-  overflow-y: auto;
-  flex: 1;
-  min-height: 0;
 }
 
 .control-section {
@@ -356,13 +349,13 @@ button:disabled {
   white-space: pre-wrap;
   font-family: 'Courier New', Courier, monospace;
   font-size: 0.75rem;
-  background: var(--background);
+  background: #0d0d1a;
   padding: 0.75rem;
   border-radius: var(--radius-sm);
   max-height: 400px;
   overflow-y: auto;
   line-height: 1.4;
-  color: var(--text-primary);
+  color: #d4d4d4;
 }
 
 /* Fade-in animation for new log lines */
@@ -380,4 +373,61 @@ button:disabled {
 /* Smooth scrolling for logs */
 .logs-content {
   scroll-behavior: smooth;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .control-panel h2 {
+    font-size: 0.9rem;
+    padding: 0.75rem;
+  }
+
+  .control-section {
+    padding: 0.75rem;
+  }
+
+  .init-form-container {
+    padding: 0.75rem;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .button-group button {
+    width: 100%;
+  }
+
+  .partition-groups {
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 480px) {
+  .control-panel h2 {
+    font-size: 0.85rem;
+    padding: 0.625rem;
+  }
+
+  .control-section {
+    padding: 0.625rem;
+  }
+
+  .init-form-container {
+    padding: 0.625rem;
+  }
+
+  .control-hint {
+    font-size: 0.65rem;
+  }
+
+  button {
+    font-size: 0.75rem;
+    padding: 0.4rem 0.8rem;
+  }
+
+  .logs-content {
+    font-size: 0.7rem;
+    max-height: 300px;
+  }
 }

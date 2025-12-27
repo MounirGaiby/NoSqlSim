@@ -15,12 +15,33 @@ interface ClusterTopologyProps {
   height?: number
 }
 
-export function ClusterTopology({ replicaSet, width = 700, height = 450 }: ClusterTopologyProps) {
+export function ClusterTopology({ replicaSet, width: initialWidth = 700, height: initialHeight = 450 }: ClusterTopologyProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number | null>(null)
   const [hoveredNode, setHoveredNode] = useState<MemberStatus | null>(null)
   const [selectedNode, setSelectedNode] = useState<MemberStatus | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const [canvasSize, setCanvasSize] = useState({ width: initialWidth, height: initialHeight })
+
+  // Responsive canvas sizing
+  useEffect(() => {
+    const updateCanvasSize = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth - 32 // Account for padding
+        const newWidth = Math.min(containerWidth, initialWidth)
+        const aspectRatio = initialHeight / initialWidth
+        const newHeight = newWidth * aspectRatio
+        setCanvasSize({ width: newWidth, height: newHeight })
+      }
+    }
+
+    updateCanvasSize()
+    window.addEventListener('resize', updateCanvasSize)
+    return () => window.removeEventListener('resize', updateCanvasSize)
+  }, [initialWidth, initialHeight])
+
+  const { width, height } = canvasSize
 
   // Animation controls
   const [showHeartbeats, setShowHeartbeats] = useState(true)
@@ -41,22 +62,23 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
   // Previous state tracking
   const prevPrimaryRef = useRef<string | null>(null)
   const prevMemberIdsRef = useRef<string[]>([])
+  const prevMemberStatesRef = useRef<string>('')
 
   // Generate replication flows from primary to all healthy secondaries
   const generateReplicationFlows = useCallback((members: MemberStatus[], primary: string | null): ReplicationFlow[] => {
     if (!primary) return []
-    
+
     const flows: ReplicationFlow[] = []
     const primaryNode = members.find(m => m.node_id === primary || m.name === primary)
-    
+
     if (!primaryNode || primaryNode.health !== 1) return []
-    
+
     members.forEach(member => {
       const isPrimary = member.node_id === primary || member.name === primary
       const isArbiter = member.state_str.toUpperCase() === 'ARBITER'
       const isHealthy = member.health === 1
       const isSecondary = member.state_str.toUpperCase() === 'SECONDARY'
-      
+
       if (!isPrimary && isHealthy && !isArbiter && isSecondary) {
         flows.push({
           fromNode: primaryNode.node_id,
@@ -66,31 +88,38 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
         })
       }
     })
-    
+
     return flows
   }, [])
 
-  // Regenerate flows when members change or primary changes
+
+  // Regenerate flows when members change, primary changes, or member states change
   useEffect(() => {
     if (!replicaSet || !showReplication) return
-    
+
     const memberIds = replicaSet.members.map(m => m.node_id).sort()
     const memberIdsStr = memberIds.join(',')
     const prevIdsStr = prevMemberIdsRef.current.join(',')
-    
+
+    // Track member states to detect when a node transitions to SECONDARY
+    const memberStatesStr = replicaSet.members
+      .map(m => `${m.node_id}:${m.state_str}`)
+      .sort()
+      .join(',')
+
     const membersChanged = memberIdsStr !== prevIdsStr
-    const primaryChanged = prevPrimaryRef.current !== null && prevPrimaryRef.current !== replicaSet.primary
-    
-    if (membersChanged || primaryChanged) {
+    const statesChanged = prevMemberStatesRef.current !== '' && prevMemberStatesRef.current !== memberStatesStr
+
+    if (membersChanged || statesChanged) {
       const newFlows = generateReplicationFlows(replicaSet.members, replicaSet.primary)
       setAnimationState(prev => ({
         ...prev,
         replicationFlows: newFlows,
       }))
     }
-    
+
     prevMemberIdsRef.current = memberIds
-    prevPrimaryRef.current = replicaSet.primary
+    prevMemberStatesRef.current = memberStatesStr
   }, [replicaSet?.members, replicaSet?.primary, showReplication, generateReplicationFlows])
 
   // Animation loop
@@ -112,7 +141,7 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
       setAnimationState(prev => {
         const newHeartbeats = new Map(prev.heartbeats)
         let newFlows = [...prev.replicationFlows]
-        
+
         if (showHeartbeats) {
           replicaSet.members.forEach(member => {
             if (member.health === 1) {
@@ -124,7 +153,7 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
             }
           })
         }
-        
+
         if (showReplication) {
           if (newFlows.length === 0 && replicaSet.primary) {
             newFlows = generateReplicationFlows(replicaSet.members, replicaSet.primary)
@@ -134,10 +163,8 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
               progress: (flow.progress + deltaTime * 0.00035) % 1
             }))
           }
-        } else {
-          newFlows = []
         }
-        
+
         return {
           ...prev,
           heartbeats: newHeartbeats,
@@ -247,7 +274,7 @@ export function ClusterTopology({ replicaSet, width = 700, height = 450 }: Clust
         
       </div>
 
-      <div className="canvas-container">
+      <div className="canvas-container" ref={containerRef}>
         <canvas
           ref={canvasRef}
           className="topology-canvas"

@@ -3,7 +3,7 @@
   border-radius: var(--radius-md);
   box-shadow: var(--shadow);
   border: 1px solid var(--border-color);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .interface-header {
@@ -382,4 +382,38 @@
 .history-status.error {
   background: var(--error);
   color: white;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .interface-header h2 {
+    font-size: 0.9rem;
+  }
+
+  .interface-header p {
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .form-section {
+    padding: 0.75rem;
+  }
+
+  .form-actions {
+    padding: 0.75rem;
+    flex-direction: column;
+  }
+
+  .form-actions button {
+    width: 100%;
+  }
+
+  .metrics-grid {
+    grid-template-columns: 1fr;
+  }
 }
