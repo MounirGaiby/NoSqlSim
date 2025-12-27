@@ -25,6 +25,7 @@ export enum ReadPreferenceMode {
 
 export interface QueryRequest {
   replica_set_name?: string
+  target_node_id?: string
   database: string
   collection: string
   operation: string

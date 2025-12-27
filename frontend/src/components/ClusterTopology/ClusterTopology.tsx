@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import type { ReplicaSetStatus, MemberStatus } from '../../types/cluster'
-import { 
-  drawClusterTopology, 
-  calculateNodePositions, 
+import type { ReplicaSetStatus, MemberStatus, PartitionInfo } from '../../types/cluster'
+import {
+  drawClusterTopology,
+  calculateNodePositions,
   NODE_RADIUS,
   type AnimationState,
-  type ReplicationFlow 
+  type ReplicationFlow
 } from '../../utils/canvas'
 import './ClusterTopology.css'
 
@@ -13,9 +13,10 @@ interface ClusterTopologyProps {
   replicaSet: ReplicaSetStatus | null
   width?: number
   height?: number
+  activePartitions?: PartitionInfo[]
 }
 
-export function ClusterTopology({ replicaSet, width: initialWidth = 700, height: initialHeight = 450 }: ClusterTopologyProps) {
+export function ClusterTopology({ replicaSet, width: initialWidth = 700, height: initialHeight = 450, activePartitions = [] }: ClusterTopologyProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number | null>(null)
@@ -65,7 +66,7 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
   const prevMemberStatesRef = useRef<string>('')
 
   // Generate replication flows from primary to all healthy secondaries
-  const generateReplicationFlows = useCallback((members: MemberStatus[], primary: string | null): ReplicationFlow[] => {
+  const generateReplicationFlows = useCallback((members: MemberStatus[], primary: string | null, partitions: PartitionInfo[]): ReplicationFlow[] => {
     if (!primary) return []
 
     const flows: ReplicationFlow[] = []
@@ -73,13 +74,27 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
 
     if (!primaryNode || primaryNode.health !== 1) return []
 
+    // Build partition map
+    const nodePartitions = new Map<string, 'A' | 'B'>()
+    if (partitions.length > 0) {
+      const partition = partitions[0]
+      partition.group_a.forEach(nodeId => nodePartitions.set(nodeId, 'A'))
+      partition.group_b.forEach(nodeId => nodePartitions.set(nodeId, 'B'))
+    }
+
+    const primaryPartition = nodePartitions.get(primaryNode.node_id)
+
     members.forEach(member => {
       const isPrimary = member.node_id === primary || member.name === primary
       const isArbiter = member.state_str.toUpperCase() === 'ARBITER'
       const isHealthy = member.health === 1
       const isSecondary = member.state_str.toUpperCase() === 'SECONDARY'
 
-      if (!isPrimary && isHealthy && !isArbiter && isSecondary) {
+      // Check if nodes are in different partitions
+      const memberPartition = nodePartitions.get(member.node_id)
+      const inDifferentPartitions = primaryPartition && memberPartition && primaryPartition !== memberPartition
+
+      if (!isPrimary && isHealthy && !isArbiter && isSecondary && !inDifferentPartitions) {
         flows.push({
           fromNode: primaryNode.node_id,
           toNode: member.node_id,
@@ -111,7 +126,7 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
     const statesChanged = prevMemberStatesRef.current !== '' && prevMemberStatesRef.current !== memberStatesStr
 
     if (membersChanged || statesChanged) {
-      const newFlows = generateReplicationFlows(replicaSet.members, replicaSet.primary)
+      const newFlows = generateReplicationFlows(replicaSet.members, replicaSet.primary, activePartitions)
       setAnimationState(prev => ({
         ...prev,
         replicationFlows: newFlows,
@@ -120,7 +135,7 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
 
     prevMemberIdsRef.current = memberIds
     prevMemberStatesRef.current = memberStatesStr
-  }, [replicaSet?.members, replicaSet?.primary, showReplication, generateReplicationFlows])
+  }, [replicaSet?.members, replicaSet?.primary, showReplication, generateReplicationFlows, activePartitions])
 
   // Animation loop
   useEffect(() => {
@@ -156,7 +171,7 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
 
         if (showReplication) {
           if (newFlows.length === 0 && replicaSet.primary) {
-            newFlows = generateReplicationFlows(replicaSet.members, replicaSet.primary)
+            newFlows = generateReplicationFlows(replicaSet.members, replicaSet.primary, activePartitions)
           } else {
             newFlows = newFlows.map(flow => ({
               ...flow,
@@ -183,7 +198,7 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
         cancelAnimationFrame(animationRef.current)
       }
     }
-  }, [replicaSet, showHeartbeats, showReplication, generateReplicationFlows])
+  }, [replicaSet, showHeartbeats, showReplication, generateReplicationFlows, activePartitions])
 
   // Draw canvas
   useEffect(() => {
@@ -214,15 +229,24 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
       return
     }
 
+    // Determine which partition each node belongs to
+    const nodePartitions = new Map<string, 'A' | 'B'>()
+    if (activePartitions.length > 0) {
+      const partition = activePartitions[0]
+      partition.group_a.forEach(nodeId => nodePartitions.set(nodeId, 'A'))
+      partition.group_b.forEach(nodeId => nodePartitions.set(nodeId, 'B'))
+    }
+
     drawClusterTopology(
       ctx,
       replicaSet.members,
       replicaSet.primary,
       width,
       height,
-      animationState
+      animationState,
+      nodePartitions
     )
-  }, [replicaSet, width, height, animationState])
+  }, [replicaSet, width, height, animationState, activePartitions])
 
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current

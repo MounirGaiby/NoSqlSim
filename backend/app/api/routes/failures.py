@@ -19,6 +19,8 @@ router = APIRouter()
 # Get failure simulator and cluster manager instances
 failure_sim = get_failure_simulator(docker_manager)
 cluster_mgr = get_cluster_manager(docker_manager)
+# Link them so cluster manager can report active failures
+cluster_mgr.set_failure_simulator(failure_sim)
 
 
 @router.post("/crash", response_model=FailureResponse)

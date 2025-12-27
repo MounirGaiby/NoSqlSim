@@ -716,3 +716,64 @@ button:disabled {
   background: var(--info-bg);
   color: #1e40af;
 }
+
+/* Partition Warning Banner */
+.partition-warning {
+  background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+  border: 2px solid #d97706;
+  border-radius: var(--radius-md);
+  padding: 1rem 1.5rem;
+  margin: 1rem 2rem;
+  box-shadow: var(--shadow-lg);
+  animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.partition-warning strong {
+  display: block;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #78350f;
+  margin-bottom: 0.25rem;
+}
+
+.partition-warning p {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: #92400e;
+}
+
+.partition-warning p:last-child {
+  margin-bottom: 0;
+}
+
+.partition-warning .partition-hint {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .partition-warning {
+    margin: 1rem;
+    padding: 0.875rem 1rem;
+  }
+
+  .partition-warning strong {
+    font-size: 0.9rem;
+  }
+
+  .partition-warning p {
+    font-size: 0.8rem;
+  }
+}

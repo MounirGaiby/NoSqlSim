@@ -317,7 +317,8 @@ export function drawNode(
   node: MemberStatus,
   isPrimary: boolean,
   isVoting: boolean = false,
-  heartbeatPulse: number = 0
+  heartbeatPulse: number = 0,
+  partitionGroup?: 'A' | 'B'
 ) {
   const colorConfig = getNodeColorConfig(node.state_str, isVoting)
   const isHealthy = node.health === 1
@@ -429,6 +430,18 @@ export function drawNode(
   ctx.textAlign = 'center'
   ctx.fillText(node.node_id || node.name.split(':')[0], x, y + NODE_LABEL_OFFSET)
 
+  // Draw partition badge
+  if (partitionGroup) {
+    const badgeColor = partitionGroup === 'A' ? '#10b981' : '#f59e0b'
+    const badgeY = isPrimary && node.state_str.toUpperCase() === 'PRIMARY'
+      ? y + NODE_LABEL_OFFSET + 28
+      : y + NODE_LABEL_OFFSET + 14
+
+    ctx.fillStyle = badgeColor
+    ctx.font = 'bold 10px Inter, sans-serif'
+    ctx.fillText(`Partition ${partitionGroup}`, x, badgeY)
+  }
+
   // Draw term badge for primary
   if (isPrimary && node.state_str.toUpperCase() === 'PRIMARY') {
     ctx.fillStyle = 'rgba(16, 185, 129, 0.9)'
@@ -496,7 +509,8 @@ export function drawClusterTopology(
   primary: string | null,
   canvasWidth: number,
   canvasHeight: number,
-  animationState?: AnimationState
+  animationState?: AnimationState,
+  nodePartitions?: Map<string, 'A' | 'B'>
 ) {
   // Draw background
   drawBackground(ctx, canvasWidth, canvasHeight)
@@ -516,6 +530,16 @@ export function drawClusterTopology(
   // Draw connections between all nodes (full mesh)
   for (let i = 0; i < positions.length; i++) {
     for (let j = i + 1; j < positions.length; j++) {
+      // Check if nodes are in different partitions
+      const node1Partition = nodePartitions?.get(positions[i].node.node_id)
+      const node2Partition = nodePartitions?.get(positions[j].node.node_id)
+      const inDifferentPartitions = node1Partition && node2Partition && node1Partition !== node2Partition
+
+      // Skip drawing connections between nodes in different partitions
+      if (inDifferentPartitions) {
+        continue
+      }
+
       const isActive = positions[i].node.health === 1 && positions[j].node.health === 1
       drawConnection(
         ctx,
@@ -565,13 +589,34 @@ export function drawClusterTopology(
     })
   }
 
+  // Draw partition boundaries if active
+  if (nodePartitions && nodePartitions.size > 0) {
+    const groupA: NodePosition[] = []
+    const groupB: NodePosition[] = []
+
+    positions.forEach(pos => {
+      const partition = nodePartitions.get(pos.node.node_id)
+      if (partition === 'A') groupA.push(pos)
+      else if (partition === 'B') groupB.push(pos)
+    })
+
+    // Draw partition group boundaries
+    if (groupA.length > 0) {
+      drawPartitionBoundary(ctx, groupA, '#10b981', 'Group A')
+    }
+    if (groupB.length > 0) {
+      drawPartitionBoundary(ctx, groupB, '#f59e0b', 'Group B')
+    }
+  }
+
   // Draw nodes on top of connections
   positions.forEach(({ x, y, node }) => {
     const isPrimary = node.node_id === primary || node.name === primary
     // Mark node as voting if it's participating in an election
     const isVoting = animationState?.electionInProgress && animationState?.votes?.has(node.node_id)
     const heartbeat = animationState?.heartbeats?.get(node.node_id) || 0
-    drawNode(ctx, x, y, node, isPrimary, isVoting || false, heartbeat)
+    const partitionGroup = nodePartitions?.get(node.node_id)
+    drawNode(ctx, x, y, node, isPrimary, isVoting || false, heartbeat, partitionGroup)
   })
 
   // Draw timestamp
@@ -585,6 +630,50 @@ export function drawClusterTopology(
       canvasHeight - 10
     )
   }
+}
+
+/**
+ * Draw partition boundary around a group of nodes
+ */
+function drawPartitionBoundary(
+  ctx: CanvasRenderingContext2D,
+  nodes: NodePosition[],
+  color: string,
+  label: string
+) {
+  if (nodes.length === 0) return
+
+  // Calculate bounding box
+  const padding = 60
+  const xs = nodes.map(n => n.x)
+  const ys = nodes.map(n => n.y)
+  const minX = Math.min(...xs) - padding
+  const maxX = Math.max(...xs) + padding
+  const minY = Math.min(...ys) - padding
+  const maxY = Math.max(...ys) + padding
+
+  // Draw dashed rectangle
+  ctx.save()
+  ctx.strokeStyle = color
+  ctx.lineWidth = 2
+  ctx.setLineDash([10, 5])
+  ctx.globalAlpha = 0.6
+  ctx.strokeRect(minX, minY, maxX - minX, maxY - minY)
+
+  // Draw filled background
+  ctx.fillStyle = color
+  ctx.globalAlpha = 0.05
+  ctx.fillRect(minX, minY, maxX - minX, maxY - minY)
+
+  // Draw label
+  ctx.globalAlpha = 0.8
+  ctx.fillStyle = color
+  ctx.font = 'bold 12px Inter, sans-serif'
+  ctx.textAlign = 'left'
+  ctx.textBaseline = 'top'
+  ctx.fillText(label, minX + 10, minY + 10)
+
+  ctx.restore()
 }
 
 /**

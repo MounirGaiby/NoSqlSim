@@ -131,16 +131,16 @@ class QueryExecutor:
     async def _find_primary_node(self, nodes: list, replica_set_name: str) -> tuple:
         """
         Find the primary node in a replica set
-        
+
         Args:
             nodes: List of NodeConfig objects
             replica_set_name: Name of the replica set
-            
+
         Returns:
             tuple: (connection_string, node_config) for primary node
         """
         cluster_mgr = get_cluster_manager()
-        
+
         # Try to get primary from cluster status
         try:
             status = await cluster_mgr.get_replica_set_status(replica_set_name)
@@ -153,7 +153,7 @@ class QueryExecutor:
                         return (conn_str, node)
         except Exception as e:
             logger.warning(f"Could not get primary from status: {e}")
-        
+
         # Fallback: try each node and check if it's primary
         for node in nodes:
             try:
@@ -168,8 +168,27 @@ class QueryExecutor:
             except Exception as e:
                 logger.debug(f"Node {node.node_id} check failed: {e}")
                 continue
-        
+
         raise ValueError("No primary node found in replica set")
+
+    async def _find_specific_node(self, nodes: list, target_node_id: str) -> tuple:
+        """
+        Find a specific node by ID
+
+        Args:
+            nodes: List of NodeConfig objects
+            target_node_id: Node ID to find
+
+        Returns:
+            tuple: (connection_string, node_config) for the target node
+        """
+        for node in nodes:
+            if node.node_id == target_node_id:
+                conn_str = f"mongodb://{node.host}:{node.port}/?directConnection=true"
+                logger.info(f"Targeting specific node: {node.node_id} at {node.host}:{node.port}")
+                return (conn_str, node)
+
+        raise ValueError(f"Node '{target_node_id}' not found in replica set")
 
     async def execute_read_query(
         self,
@@ -197,9 +216,11 @@ class QueryExecutor:
                 raise ValueError(f"Replica set '{replica_set_name}' not found")
             
             nodes = cluster_mgr.replica_sets[replica_set_name]
-            
-            # Find a working node based on read preference
-            if query_request.read_preference == ReadPreferenceMode.PRIMARY:
+
+            # Find target node: specific node if provided, otherwise based on read preference
+            if query_request.target_node_id:
+                connection_string, target_node = await self._find_specific_node(nodes, query_request.target_node_id)
+            elif query_request.read_preference == ReadPreferenceMode.PRIMARY:
                 connection_string, target_node = await self._find_primary_node(nodes, replica_set_name)
             else:
                 connection_string, target_node = await self._find_working_node(nodes)
@@ -331,11 +352,16 @@ class QueryExecutor:
                 raise ValueError(f"Replica set '{replica_set_name}' not found")
             
             nodes = cluster_mgr.replica_sets[replica_set_name]
-            
-            # Writes MUST go to primary
-            connection_string, target_node = await self._find_primary_node(nodes, replica_set_name)
-            
-            logger.info(f"Connecting to primary {target_node.node_id} for write: {connection_string}")
+
+            # Find target node: specific node if provided (for testing), otherwise primary
+            if query_request.target_node_id:
+                connection_string, target_node = await self._find_specific_node(nodes, query_request.target_node_id)
+                logger.info(f"Targeting specific node for write (testing): {target_node.node_id}")
+            else:
+                # Writes normally go to primary
+                connection_string, target_node = await self._find_primary_node(nodes, replica_set_name)
+
+            logger.info(f"Connecting to {target_node.node_id} for write: {connection_string}")
 
             # Create MongoDB client with write settings
             write_concern = self._get_write_concern(

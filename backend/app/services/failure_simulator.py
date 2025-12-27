@@ -119,30 +119,118 @@ class FailureSimulator:
         logger.info(f"Group B: {partition_config.group_b}")
 
         try:
-            # Create partition networks
-            network_a = self.docker_manager.client.networks.create(
-                'nosqlsim_partition_a',
-                driver='bridge'
-            )
-            network_b = self.docker_manager.client.networks.create(
-                'nosqlsim_partition_b',
-                driver='bridge'
-            )
-
-            # Move nodes to partition networks
-            for node_id in partition_config.group_a:
-                await self.docker_manager.detach_from_network(
-                    node_id,
-                    "nosqlsim_default"
+            # Get or create partition networks
+            try:
+                network_a = self.docker_manager.client.networks.get('nosqlsim_partition_a')
+                logger.info("Reusing existing partition network A")
+            except:
+                network_a = self.docker_manager.client.networks.create(
+                    'nosqlsim_partition_a',
+                    driver='bridge'
                 )
-                await self.docker_manager.attach_to_network(node_id, 'nosqlsim_partition_a')
+                logger.info("Created new partition network A")
+
+            try:
+                network_b = self.docker_manager.client.networks.get('nosqlsim_partition_b')
+                logger.info("Reusing existing partition network B")
+            except:
+                network_b = self.docker_manager.client.networks.create(
+                    'nosqlsim_partition_b',
+                    driver='bridge'
+                )
+                logger.info("Created new partition network B")
+
+            # Add nodes to partition networks (keep them on default network for backend connectivity)
+            # This allows backend health checks to work while nodes are isolated from each other
+            for node_id in partition_config.group_a:
+                # Detach from both partition networks first (clean slate)
+                try:
+                    await self.docker_manager.detach_from_network(node_id, 'nosqlsim_partition_a')
+                except:
+                    pass
+                try:
+                    await self.docker_manager.detach_from_network(node_id, 'nosqlsim_partition_b')
+                except:
+                    pass
+                # Attach to partition A
+                try:
+                    await self.docker_manager.attach_to_network(node_id, 'nosqlsim_partition_a')
+                    logger.info(f"Attached {node_id} to partition A")
+                except Exception as e:
+                    if "already exists" in str(e):
+                        logger.warning(f"{node_id} already in partition A")
+                    else:
+                        raise
 
             for node_id in partition_config.group_b:
-                await self.docker_manager.detach_from_network(
-                    node_id,
-                    "nosqlsim_default"
-                )
-                await self.docker_manager.attach_to_network(node_id, 'nosqlsim_partition_b')
+                # Detach from both partition networks first (clean slate)
+                try:
+                    await self.docker_manager.detach_from_network(node_id, 'nosqlsim_partition_a')
+                except:
+                    pass
+                try:
+                    await self.docker_manager.detach_from_network(node_id, 'nosqlsim_partition_b')
+                except:
+                    pass
+                # Attach to partition B
+                try:
+                    await self.docker_manager.attach_to_network(node_id, 'nosqlsim_partition_b')
+                    logger.info(f"Attached {node_id} to partition B")
+                except Exception as e:
+                    if "already exists" in str(e):
+                        logger.warning(f"{node_id} already in partition B")
+                    else:
+                        raise
+
+            # Use iptables to block traffic between the two partition networks
+            # This simulates the partition while keeping backend connectivity
+            for node_id in partition_config.group_a:
+                container_name = self.docker_manager._get_container_name(node_id)
+                container = self.docker_manager.client.containers.get(container_name)
+                # Block traffic to nodes in group B
+                for target_node_id in partition_config.group_b:
+                    target_container_name = self.docker_manager._get_container_name(target_node_id)
+                    target_container = self.docker_manager.client.containers.get(target_container_name)
+                    try:
+                        # Get IP of target node in default network
+                        target_ip = target_container.attrs['NetworkSettings']['Networks']['nosqlsim_default']['IPAddress']
+                        # Block traffic to this IP (both directions will be blocked when we process group B)
+                        exec_result = container.exec_run(f"iptables -A OUTPUT -d {target_ip} -j DROP", privileged=True)
+                        if exec_result.exit_code != 0:
+                            logger.error(f"iptables command failed for {node_id}: {exec_result.output.decode()}")
+                            raise Exception(f"iptables failed: {exec_result.output.decode()}")
+                        logger.info(f"Blocked traffic from {node_id} to {target_node_id} ({target_ip})")
+                    except Exception as e:
+                        logger.error(f"Could not set iptables rule on {node_id}: {e}")
+                        logger.warning("Falling back to network detachment - partition may not work correctly")
+                        # Fallback: detach from default network if iptables fails
+                        try:
+                            await self.docker_manager.detach_from_network(node_id, "nosqlsim_default")
+                        except Exception as detach_error:
+                            logger.error(f"Fallback detachment also failed: {detach_error}")
+
+            for node_id in partition_config.group_b:
+                container_name = self.docker_manager._get_container_name(node_id)
+                container = self.docker_manager.client.containers.get(container_name)
+                # Block traffic to nodes in group A
+                for target_node_id in partition_config.group_a:
+                    target_container_name = self.docker_manager._get_container_name(target_node_id)
+                    target_container = self.docker_manager.client.containers.get(target_container_name)
+                    try:
+                        target_ip = target_container.attrs['NetworkSettings']['Networks']['nosqlsim_default']['IPAddress']
+                        exec_result = container.exec_run(f"iptables -A OUTPUT -d {target_ip} -j DROP", privileged=True)
+                        if exec_result.exit_code != 0:
+                            logger.error(f"iptables command failed for {node_id}: {exec_result.output.decode()}")
+                            raise Exception(f"iptables failed: {exec_result.output.decode()}")
+                        logger.info(f"Blocked traffic from {node_id} to {target_node_id} ({target_ip})")
+                    except Exception as e:
+                        logger.error(f"Could not set iptables rule on {node_id}: {e}")
+                        logger.warning("Falling back to network detachment - partition may not work correctly")
+                        # Fallback: detach from default network if iptables fails
+                        try:
+                            await self.docker_manager.detach_from_network(node_id, "nosqlsim_default")
+                        except Exception as detach_error:
+                            logger.error(f"Fallback detachment also failed: {detach_error}")
 
             affected_nodes = partition_config.group_a + partition_config.group_b
 
@@ -166,7 +254,7 @@ class FailureSimulator:
 
     async def heal_network_partition(self) -> bool:
         """
-        Heal all network partitions by restoring nodes to default network
+        Heal all network partitions by removing iptables rules and cleaning up networks
 
         Returns:
             bool: True if successful
@@ -184,38 +272,55 @@ class FailureSimulator:
                 logger.info("No active partitions to heal")
                 return True
 
-            # Restore all affected nodes to default network
+            # Restore all affected nodes
             affected_nodes = set()
             for failure in partition_failures:
                 affected_nodes.update(failure.affected_nodes)
 
             for node_id in affected_nodes:
                 try:
-                    # Try to detach from partition networks
-                    try:
-                        await self.docker_manager.detach_from_network(
-                            node_id,
-                            "nosqlsim_partition_a"
-                        )
-                    except:
-                        pass
+                    container_name = self.docker_manager._get_container_name(node_id)
+                    container = self.docker_manager.client.containers.get(container_name)
 
+                    # Clear all iptables OUTPUT rules (this removes our partition blocks)
                     try:
-                        await self.docker_manager.detach_from_network(
-                            node_id,
-                            "nosqlsim_partition_b"
-                        )
-                    except:
-                        pass
+                        container.exec_run("iptables -F OUTPUT", privileged=True)
+                        logger.info(f"Cleared iptables rules for {node_id}")
+                    except Exception as e:
+                        logger.warning(f"Could not clear iptables for {node_id}: {e}")
 
-                    # Attach to default network
+                except Exception as e:
+                    logger.error(f"Failed to restore node {node_id}: {e}")
+
+            # Detach all nodes from partition networks after clearing iptables
+            for node_id in affected_nodes:
+                try:
+                    await self.docker_manager.detach_from_network(
+                        node_id,
+                        "nosqlsim_partition_a"
+                    )
+                    logger.info(f"Detached {node_id} from partition A")
+                except Exception as e:
+                    logger.debug(f"Could not detach {node_id} from partition A: {e}")
+
+                try:
+                    await self.docker_manager.detach_from_network(
+                        node_id,
+                        "nosqlsim_partition_b"
+                    )
+                    logger.info(f"Detached {node_id} from partition B")
+                except Exception as e:
+                    logger.debug(f"Could not detach {node_id} from partition B: {e}")
+
+                # Re-attach to default network if needed (in case it was detached as fallback)
+                try:
                     await self.docker_manager.attach_to_network(
                         node_id,
                         "nosqlsim_default"
                     )
-
                 except Exception as e:
-                    logger.error(f"Failed to restore node {node_id}: {e}")
+                    if "already exists" not in str(e):
+                        logger.warning(f"Could not re-attach {node_id} to default network: {e}")
 
             # Remove partition failures
             failures_to_remove = [
@@ -226,20 +331,28 @@ class FailureSimulator:
             for fid in failures_to_remove:
                 del self.active_failures[fid]
 
-            # Clean up partition networks
+            # Clean up partition networks (only after detaching all nodes)
             try:
-                self.docker_manager.client.networks.get(
-                    "nosqlsim_partition_a"
-                ).remove()
-            except:
-                pass
+                network_a = self.docker_manager.client.networks.get("nosqlsim_partition_a")
+                network_a.reload()
+                if len(network_a.attrs.get('Containers', {})) == 0:
+                    network_a.remove()
+                    logger.info("Removed partition network A")
+                else:
+                    logger.warning("Partition network A still has containers, skipping removal")
+            except Exception as e:
+                logger.debug(f"Could not remove partition network A: {e}")
 
             try:
-                self.docker_manager.client.networks.get(
-                    "nosqlsim_partition_b"
-                ).remove()
-            except:
-                pass
+                network_b = self.docker_manager.client.networks.get("nosqlsim_partition_b")
+                network_b.reload()
+                if len(network_b.attrs.get('Containers', {})) == 0:
+                    network_b.remove()
+                    logger.info("Removed partition network B")
+                else:
+                    logger.warning("Partition network B still has containers, skipping removal")
+            except Exception as e:
+                logger.debug(f"Could not remove partition network B: {e}")
 
             logger.info("All network partitions healed")
             return True

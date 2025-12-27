@@ -11,12 +11,16 @@ from app.models.cluster import (
 )
 from app.services.docker_manager import docker_manager
 from app.services.cluster_manager import get_cluster_manager
+from app.services.failure_simulator import get_failure_simulator
 from app.websocket.broadcaster import broadcaster
 
 router = APIRouter()
 
-# Get cluster manager instance
+# Get cluster manager and failure simulator instances
 cluster_mgr = get_cluster_manager(docker_manager)
+failure_sim = get_failure_simulator(docker_manager)
+# Link them so cluster manager can report active failures
+cluster_mgr.set_failure_simulator(failure_sim)
 
 
 @router.post("/init")

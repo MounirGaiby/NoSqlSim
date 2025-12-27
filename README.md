@@ -47,11 +47,12 @@ Frontend runs on: http://localhost:5173
 
 ## Features
 
-✅ Replica set visualization
-✅ Real-time WebSocket updates
-✅ Node failure simulation
-✅ Query execution with consistency controls
-✅ Network partitions for CAP theorem demos
+- Replica set visualization
+- Real-time WebSocket updates
+- Node failure simulation
+- Query execution with consistency controls
+- Network partitions demonstrating MongoDB's CP (Consistency + Partition tolerance) behavior
+- Interactive CAP theorem education panel
 
 ## Troubleshooting
 
@@ -87,5 +88,31 @@ Full API docs: http://localhost:8000/docs
 This tool demonstrates:
 - MongoDB replica sets and elections
 - Read/write concerns (local, majority, linearizable)
-- CAP theorem through network partitions
+- **CAP Theorem: MongoDB is CP (Consistency + Partition tolerance)**
+  - MongoDB prioritizes consistency over availability during network partitions
+  - The minority partition rejects writes to prevent split-brain scenarios
+  - Only the majority partition can elect a primary and accept writes
 - Failure handling and automatic failover
+
+### Understanding MongoDB's CP Behavior
+
+According to the **CAP Theorem**, distributed systems can only guarantee two of three properties: Consistency, Availability, and Partition tolerance.
+
+**MongoDB chooses CP (Consistency + Partition tolerance):**
+- **Consistency**: All nodes see the same data at the same time
+- **Partition Tolerance**: System continues to operate despite network partitions
+- **Availability (sacrificed)**: During a partition, the minority side becomes unavailable for writes
+
+**Why this matters:**
+When you create a network partition (e.g., split a 3-node cluster into 2 vs 1):
+1. The majority partition (2 nodes) can elect a primary and accept writes
+2. The minority partition (1 node) cannot elect a primary and will reject writes
+3. This ensures data consistency - preventing conflicting writes across partitions
+4. If MongoDB were AP instead, both sides would accept writes, leading to inconsistency
+
+**Try it yourself:**
+1. Initialize a 3-node replica set
+2. Use the "Network Partitions" section in the Control Panel
+3. Create a 2-1 partition
+4. Try executing writes on both sides using the Query Interface
+5. Observe: Only the majority side accepts writes!

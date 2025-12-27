@@ -9,6 +9,7 @@ from app.api.routes import cluster, queries, failures
 from app.websocket.broadcaster import broadcaster
 from app.services.docker_manager import docker_manager
 from app.services.cluster_manager import cluster_manager
+from app.services.failure_simulator import get_failure_simulator
 from app.services.log_streamer import get_log_streamer
 
 # Configure logging
@@ -56,11 +57,28 @@ async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.app_name} v{settings.app_version}")
     logger.info(f"Debug mode: {settings.debug}")
 
+    # Startup: Link failure simulator to cluster manager
+    failure_sim = get_failure_simulator(docker_manager)
+    cluster_manager.set_failure_simulator(failure_sim)
+    logger.info("Cluster manager linked to failure simulator")
+
     # Startup: Cleanup any leftover containers from previous runs
     try:
         await docker_manager.cleanup_all()
     except Exception as e:
         logger.warning(f"Failed to cleanup leftover resources: {e}")
+
+    # Startup: Cleanup any leftover partition networks
+    try:
+        for network_name in ["nosqlsim_partition_a", "nosqlsim_partition_b"]:
+            try:
+                network = docker_manager.client.networks.get(network_name)
+                network.remove()
+                logger.info(f"Removed leftover partition network: {network_name}")
+            except:
+                pass
+    except Exception as e:
+        logger.warning(f"Failed to cleanup leftover partition networks: {e}")
 
     # Startup: Initialize log streamer
     log_streamer = get_log_streamer(docker_manager, broadcaster)
@@ -123,7 +141,7 @@ async def root():
         "description": "Educational MongoDB Simulation",
         "team": {
             "creators": ["Mounir Gaiby", "Amine Banan"],
-            "professor": "Prof Hanin",
+            "professor": "Prof Mohamed Hanine",
             "class": "3CI Big Data and Artificial Intelligence",
             "module": "NoSQL",
             "school": "ISGA",

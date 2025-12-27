@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queriesApi } from '../../api/queries'
+import { clusterApi } from '../../api/cluster'
 import {
   QueryRequest,
   QueryResult,
@@ -8,7 +9,6 @@ import {
   WriteConcernLevel,
   ReadPreferenceMode,
 } from '../../types/query'
-import { Tooltip } from '../Tooltip/Tooltip'
 import './QueryInterface.css'
 
 interface QueryInterfaceProps {
@@ -22,6 +22,7 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
   const [database, setDatabase] = useState('testdb')
   const [collection, setCollection] = useState('testcol')
   const [operation, setOperation] = useState('find')
+  const [targetNodeId, setTargetNodeId] = useState<string>('')
   const [queryFilter, setQueryFilter] = useState('{}')
   const [document, setDocument] = useState('{}')
   const [limit, setLimit] = useState('')
@@ -33,6 +34,18 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
 
   // Result state
   const [lastResult, setLastResult] = useState<QueryResult | null>(null)
+
+  // Fetch cluster state to get available nodes
+  const { data: clusterState } = useQuery({
+    queryKey: ['cluster-status'],
+    queryFn: clusterApi.getClusterStatus,
+    refetchInterval: 2000,
+  })
+
+  // Get available nodes from cluster state
+  const availableNodes = clusterState?.replica_sets && Object.values(clusterState.replica_sets)
+    .flatMap(rs => rs.members || [])
+    .filter(member => member.node_id) || []
 
   // Execute query mutation
   const executeMutation = useMutation({
@@ -93,6 +106,7 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
       // Build request
       const request: QueryRequest = {
         replica_set_name: replicaSetName,
+        target_node_id: targetNodeId || undefined,
         database,
         collection,
         operation,
@@ -140,6 +154,25 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
         {/* Target */}
         <div className="form-section">
           <h3>Target</h3>
+          <div className="form-row">
+            <div className="form-group">
+              <label>Target Node (Optional)</label>
+              <select
+                value={targetNodeId}
+                onChange={(e) => setTargetNodeId(e.target.value)}
+              >
+                <option value="">Auto (based on read preference)</option>
+                {availableNodes.map(node => (
+                  <option key={node.node_id} value={node.node_id}>
+                    {node.node_id} ({node.state_str})
+                  </option>
+                ))}
+              </select>
+              <small style={{ color: '#94a3b8', fontSize: '11px', marginTop: '4px', display: 'block' }}>
+                Specify a node to test partition tolerance or read from specific replicas
+              </small>
+            </div>
+          </div>
           <div className="form-row">
             <div className="form-group">
               <label>Database</label>
@@ -227,14 +260,7 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
           {isReadOperation && (
             <>
               <div className="form-group">
-                <label>
-                  Read Concern
-                  <Tooltip
-                    content="Controls data freshness: 'local' is fastest but may return stale data, 'majority' ensures data won't be rolled back, 'linearizable' is slowest but guarantees the absolute latest data."
-                    position="right"
-                    maxWidth="300px"
-                  />
-                </label>
+                <label>Read Concern</label>
                 <select
                   value={readConcern}
                   onChange={(e) => setReadConcern(e.target.value as ReadConcernLevel)}
@@ -247,14 +273,7 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
               </div>
 
               <div className="form-group">
-                <label>
-                  Read Preference
-                  <Tooltip
-                    content="Choose which nodes to read from: 'primary' always reads from leader (most consistent), 'secondary' offloads reads to followers (may be stale), 'nearest' picks lowest latency node."
-                    position="right"
-                    maxWidth="300px"
-                  />
-                </label>
+                <label>Read Preference</label>
                 <select
                   value={readPreference}
                   onChange={(e) => setReadPreference(e.target.value as ReadPreferenceMode)}
@@ -271,14 +290,7 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
 
           {isWriteOperation && (
             <div className="form-group">
-              <label>
-                Write Concern
-                <Tooltip
-                  content="Controls write durability: 'w:0' is fastest but unsafe (no ack), 'w:1' waits for primary ack, 'w:majority' waits for majority ack (safest, prevents data loss during failover)."
-                  position="right"
-                  maxWidth="300px"
-                />
-              </label>
+              <label>Write Concern</label>
               <select
                 value={writeConcern}
                 onChange={(e) => setWriteConcern(e.target.value as WriteConcernLevel)}

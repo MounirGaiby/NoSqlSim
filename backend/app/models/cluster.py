@@ -70,6 +70,14 @@ class ShardedClusterStatus(BaseModel):
     )
 
 
+class PartitionInfo(BaseModel):
+    """Information about an active network partition"""
+    failure_id: str = Field(..., description="Partition failure ID")
+    group_a: List[str] = Field(..., description="Node IDs in partition group A")
+    group_b: List[str] = Field(..., description="Node IDs in partition group B")
+    description: Optional[str] = Field(None, description="Partition description")
+
+
 class ClusterState(BaseModel):
     """Complete state of all clusters"""
     timestamp: datetime = Field(
@@ -87,6 +95,10 @@ class ClusterState(BaseModel):
     active_failures: List[str] = Field(
         default_factory=list,
         description="List of active failure IDs"
+    )
+    active_partitions: List[PartitionInfo] = Field(
+        default_factory=list,
+        description="List of active network partitions"
     )
 
 

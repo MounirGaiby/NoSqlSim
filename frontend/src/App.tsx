@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { ClusterTopology } from './components/ClusterTopology/ClusterTopology'
 import { ControlPanel } from './components/ControlPanel/ControlPanel'
 import { QueryInterface } from './components/QueryInterface/QueryInterface'
+import { CAPTheorem } from './components/CAPTheorem/CAPTheorem'
 import { clusterApi } from './api/cluster'
 import { useClusterStore } from './hooks/useClusterState'
 import { useWebSocket } from './hooks/useWebSocket'
@@ -58,6 +59,11 @@ function AppContent() {
   const firstReplicaSet = replicaSets[0] || null
   const hasCluster = replicaSets.length > 0
 
+  // Check for active network partitions
+  const hasActivePartition = (clusterState?.active_failures || []).some(
+    failureId => failureId.startsWith('partition-')
+  )
+
   return (
     <div className="app">
       <header className="app-header">
@@ -68,7 +74,7 @@ function AppContent() {
           </div>
           <div className="header-right">
             <div className="credits">
-              <p>Created by: Mounir Gaiby, Amine Banan | Prof Hanin</p>
+              <p>Created by: Mounir Gaiby, Amine Banan | Prof Mohamed Hanine</p>
               <p>3CI Big Data & AI | NoSQL Module | ISGA 2025/2026</p>
             </div>
           </div>
@@ -89,9 +95,27 @@ function AppContent() {
           </div>
         )}
 
+        {hasActivePartition && clusterState?.active_partitions && clusterState.active_partitions.length > 0 && (
+          <div className="partition-warning">
+            <strong>Network Partition Active</strong>
+            <p>
+              Group A: {clusterState.active_partitions[0].group_a.join(', ')} |
+              Group B: {clusterState.active_partitions[0].group_b.join(', ')}
+            </p>
+            <p className="partition-hint">
+              Only the majority group can accept writes (CP behavior).
+            </p>
+          </div>
+        )}
+
         <div className="app-layout">
           <div className="main-content">
-            <ClusterTopology replicaSet={firstReplicaSet} width={700} height={380} />
+            <ClusterTopology
+              replicaSet={firstReplicaSet}
+              width={700}
+              height={380}
+              activePartitions={clusterState?.active_partitions || []}
+            />
 
             {hasCluster && firstReplicaSet && (
               <div className="cluster-info">
@@ -120,6 +144,8 @@ function AppContent() {
                 </div>
               </div>
             )}
+
+            {hasCluster && <CAPTheorem />}
 
             {hasCluster && firstReplicaSet && (
               <QueryInterface replicaSetName={firstReplicaSet.set_name} />

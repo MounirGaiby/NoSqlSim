@@ -110,9 +110,11 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
     mutationFn: () =>
       failuresApi.createPartition({
         replica_set_name: replicaSetName!,
-        group_a: partitionGroupA,
-        group_b: partitionGroupB,
-        description: `Partition: [${partitionGroupA.join(', ')}] vs [${partitionGroupB.join(', ')}]`,
+        partition_config: {
+          group_a: partitionGroupA,
+          group_b: partitionGroupB,
+          description: `Partition: [${partitionGroupA.join(', ')}] vs [${partitionGroupB.join(', ')}]`,
+        },
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cluster-status'] })
@@ -396,16 +398,27 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
             )}
           </div>
 
-          {/* Network Partitions (CAP) - Hidden for now
-          <div className="control-section">
-            <h4>Network Partitions (CAP Theorem)</h4>
+          <div className="control-section cap-section">
+            <h4>Network Partitions (CAP Theorem Demo)</h4>
+            <div className="partition-explanation">
+              <p><strong>What is a network partition?</strong></p>
+              <p>
+                A partition splits the cluster into isolated groups that cannot communicate with each other.
+                This simulates a network failure between data centers or network zones.
+              </p>
+              <p><strong>What does "Heal" do?</strong></p>
+              <p>
+                Healing restores network connectivity between all nodes, reuniting the partitioned groups
+                back into a single cluster.
+              </p>
+            </div>
             <p className="control-hint">
-              Create a network partition to demonstrate CAP theorem. Select nodes for each isolated group.
+              Select nodes for each isolated group, then create the partition.
             </p>
 
             <div className="partition-groups">
               <div className="partition-group">
-                <h5>Group A (Majority)</h5>
+                <h5>Group A</h5>
                 <div className="node-checkboxes">
                   {nodes.map((node) => (
                     <label key={`a-${node.node_id}`} className="checkbox-label">
@@ -426,7 +439,7 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
               <div className="partition-divider">vs</div>
 
               <div className="partition-group">
-                <h5>Group B (Minority)</h5>
+                <h5>Group B</h5>
                 <div className="node-checkboxes">
                   {nodes.map((node) => (
                     <label key={`b-${node.node_id}`} className="checkbox-label">
@@ -459,15 +472,15 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
                 disabled={healPartitionsMutation.isPending}
                 className="btn-success"
               >
-                {healPartitionsMutation.isPending ? 'Healing...' : 'Heal Partition'}
+                {healPartitionsMutation.isPending ? 'Healing...' : 'Heal Partitions'}
               </button>
             </div>
 
-            <p className="control-hint">
-              Tip: Create a 3-2 split (majority vs minority) to observe CAP theorem: writes to minority will fail!
-            </p>
+            <div className="cap-hint">
+              <strong>Expected Behavior:</strong> The minority partition will reject writes to maintain consistency,
+              while the majority partition continues to operate normally.
+            </div>
           </div>
-          */}
 
           <div className="control-section">
             <h4>Node Logs</h4>

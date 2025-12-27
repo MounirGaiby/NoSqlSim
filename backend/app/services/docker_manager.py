@@ -82,7 +82,7 @@ class DockerManager:
             # MongoDB command
             command = f"mongod --replSet {replica_set_name} --bind_ip_all --port 27017"
 
-            # Create container
+            # Create container with NET_ADMIN capability for network partition simulation
             container = self.client.containers.run(
                 image=f"mongo:{settings.mongodb_version}",
                 name=container_name,
@@ -93,6 +93,7 @@ class DockerManager:
                 environment={
                     "MONGO_INITDB_DATABASE": "admin"
                 },
+                cap_add=['NET_ADMIN'],  # Required for iptables in partition simulation
                 mem_limit=settings.docker_memory_limit,
                 detach=True,
                 remove=False
@@ -281,15 +282,14 @@ class DockerManager:
                 container = self.client.containers.get(container_name)
                 self.containers[node_id] = container
 
-            # Get or create network
-            if network_name not in self.networks:
-                try:
-                    network = self.client.networks.get(network_name)
-                except docker.errors.NotFound:
-                    network = self.client.networks.create(network_name, driver="bridge")
+            # Always refresh network object from Docker to avoid using stale cached references
+            try:
+                network = self.client.networks.get(network_name)
+                self.networks[network_name] = network
+            except docker.errors.NotFound:
+                network = self.client.networks.create(network_name, driver="bridge")
                 self.networks[network_name] = network
 
-            network = self.networks[network_name]
             container = self.containers[node_id]
 
             network.connect(container)
@@ -308,11 +308,14 @@ class DockerManager:
                 container = self.client.containers.get(container_name)
                 self.containers[node_id] = container
 
-            if network_name not in self.networks:
+            # Always refresh network object from Docker to avoid using stale cached references
+            try:
                 network = self.client.networks.get(network_name)
                 self.networks[network_name] = network
+            except docker.errors.NotFound:
+                logger.debug(f"Network {network_name} not found, nothing to detach")
+                return
 
-            network = self.networks[network_name]
             container = self.containers[node_id]
 
             network.disconnect(container)

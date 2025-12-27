@@ -36,6 +36,7 @@ class QueryRequest(BaseModel):
     """Request to execute a query"""
     # Target settings
     replica_set_name: Optional[str] = Field(None, description="Target replica set name (optional if only one exists)")
+    target_node_id: Optional[str] = Field(None, description="Specific node ID to target (optional, overrides read preference)")
     database: str = Field(default="testdb", description="Database name")
     collection: str = Field(default="testcol", description="Collection name")
 

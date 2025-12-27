@@ -29,11 +29,19 @@ export interface ReplicaSetStatus {
   term?: number
 }
 
+export interface PartitionInfo {
+  failure_id: string
+  group_a: string[]
+  group_b: string[]
+  description?: string
+}
+
 export interface ClusterState {
   timestamp: string
   replica_sets: Record<string, ReplicaSetStatus>
   sharded_clusters: any[]
   active_failures: string[]
+  active_partitions: PartitionInfo[]
 }
 
 export interface InitClusterRequest {

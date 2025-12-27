@@ -1,6 +1,6 @@
 from pymongo import MongoClient
 from pymongo.errors import PyMongoError
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
 import logging
 import time
 import asyncio
@@ -15,6 +15,9 @@ from app.models.cluster import (
 )
 from app.services.docker_manager import DockerManager
 
+if TYPE_CHECKING:
+    from app.services.failure_simulator import FailureSimulator
+
 logger = logging.getLogger(__name__)
 
 
@@ -27,11 +30,16 @@ class ClusterManager:
         self.mongo_clients: Dict[str, MongoClient] = {}
         self.replica_sets: Dict[str, List[NodeConfig]] = {}
         self.next_port = settings.mongodb_start_port
+        self._failure_simulator: Optional['FailureSimulator'] = None
+
+    def set_failure_simulator(self, failure_simulator: 'FailureSimulator'):
+        """Set the failure simulator reference"""
+        self._failure_simulator = failure_simulator
 
     async def get_cluster_status(self) -> ClusterState:
         """
         Get current status of all clusters
-        
+
         Returns:
             ClusterState: Complete state of all clusters
         """
@@ -46,11 +54,31 @@ class ClusterManager:
                 # Skip failed replica sets or include with error state
                 continue
 
+        # Get active failures from failure simulator if available
+        active_failure_ids = []
+        active_partitions = []
+        if self._failure_simulator is not None:
+            active_failures = self._failure_simulator.get_active_failures()
+            active_failure_ids = list(active_failures.keys())
+
+            # Extract partition information
+            from app.models.cluster import PartitionInfo
+            for failure_id, failure in active_failures.items():
+                if failure.failure_type == "network_partition":
+                    partition_config = failure.config
+                    active_partitions.append(PartitionInfo(
+                        failure_id=failure_id,
+                        group_a=partition_config.get('group_a', []),
+                        group_b=partition_config.get('group_b', []),
+                        description=partition_config.get('description')
+                    ))
+
         return ClusterState(
             timestamp=datetime.utcnow(),
             replica_sets=replica_sets_status,
             sharded_clusters=[],
-            active_failures=[]
+            active_failures=active_failure_ids,
+            active_partitions=active_partitions
         )
 
     def _get_next_port(self) -> int:
