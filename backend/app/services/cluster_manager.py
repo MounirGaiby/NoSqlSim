@@ -84,8 +84,7 @@ class ClusterManager:
         self,
         replica_set_name: str,
         node_count: int = 3,
-        starting_port: int = None,
-        election_timeout_millis: int = 10000
+        starting_port: int = None
     ) -> ReplicaSetStatus:
         """
         Initialize a new replica set
@@ -94,7 +93,6 @@ class ClusterManager:
             replica_set_name: Name of the replica set
             node_count: Number of nodes to create
             starting_port: Starting port number (optional)
-            election_timeout_millis: Election timeout in milliseconds (optional)
 
         Returns:
             ReplicaSetStatus: Status of the initialized replica set
@@ -143,10 +141,7 @@ class ClusterManager:
             # Build replica set configuration
             rs_config = {
                 "_id": replica_set_name,
-                "members": [],
-                "settings": {
-                    "electionTimeoutMillis": election_timeout_millis
-                }
+                "members": []
             }
 
             for idx, node in enumerate(nodes):
@@ -501,13 +496,34 @@ class ClusterManager:
                 client.admin.command("replSetStepDown", step_down_secs)
             except PyMongoError as stepdown_error:
                 error_msg = str(stepdown_error).lower()
-                # If no electable secondaries, DON'T force - that would leave the cluster without a primary
+                # If no electable secondaries, explain the MongoDB limitation
                 if 'no electable secondaries' in error_msg or 'exceededtimelimit' in error_msg:
                     logger.warning(f"No electable secondaries available: {stepdown_error}")
+
+                    # Calculate recommended wait time (stepdown period + buffer for election)
+                    recommended_wait = step_down_secs + 5
+
                     raise ValueError(
-                        "Cannot step down: no electable secondaries available. "
-                        "All other nodes are either down or still in their stepdown period. "
-                        "Please wait for other nodes to become eligible or start more nodes."
+                        f"⏸️  Cannot Step Down: All nodes are temporarily ineligible\n\n"
+                        f"❓ What happened?\n"
+                        f"You've stepped down the primary too many times in a row. When a node steps down, "
+                        f"it becomes ineligible to be primary again for {step_down_secs} seconds. All your other "
+                        f"nodes are still in their ineligibility period, so there's no one to take over!\n\n"
+                        f"⏱️  WAIT TIME REQUIRED: ~{recommended_wait} seconds\n"
+                        f"   (Stepdown period: {step_down_secs}s + Election time: ~5s)\n\n"
+                        f"✅ What to do:\n\n"
+                        f"Option 1: WAIT {recommended_wait} seconds, then try Step Down again\n"
+                        f"   → Best for learning about graceful failover\n"
+                        f"   → Simulates production-safe primary rotation\n\n"
+                        f"Option 2: Use 'Crash Primary' button instead (available now)\n"
+                        f"   → Forces immediate failover without waiting\n"
+                        f"   → Simulates a real server crash scenario\n"
+                        f"   → Good for testing cluster resilience\n\n"
+                        f"Option 3: Add more nodes to your cluster\n"
+                        f"   → More nodes = more candidates = less likely to hit this limit\n\n"
+                        f"💡 Why this exists:\n"
+                        f"This safety mechanism prevents 'election ping-pong' in production MongoDB clusters. "
+                        f"It ensures stable leadership transitions and is a key part of MongoDB's reliability design."
                     )
                 else:
                     raise
