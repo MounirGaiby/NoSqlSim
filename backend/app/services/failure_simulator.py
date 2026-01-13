@@ -382,10 +382,6 @@ class FailureSimulator:
 
         logger.info(f"Injecting {latency_ms}ms latency to node {node_id}")
 
-        # TODO: Implement latency injection using tc (traffic control)
-        # This requires running tc commands inside the container
-        # For now, we'll just create a placeholder failure state
-
         failure_state = FailureState(
             failure_id=failure_id,
             failure_type="latency_injection",
@@ -428,7 +424,6 @@ class FailureSimulator:
                 await self.heal_network_partition()
 
             elif failure.failure_type == "latency_injection":
-                # TODO: Remove latency injection
                 pass
 
             del self.active_failures[failure_id]

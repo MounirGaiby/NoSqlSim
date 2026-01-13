@@ -572,7 +572,6 @@ class ClusterManager:
                     del self.mongo_clients[connection_string]
                 return True
             else:
-                # This is an actual error
                 logger.error(f"Error stepping down primary: {e}")
                 raise
 

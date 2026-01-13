@@ -232,11 +232,7 @@ class DockerManager:
     def get_replica_set_connection_string(self, replica_set_name: str, nodes: list) -> str:
         """
         Get MongoDB connection string for a replica set using external ports
-        
-        NOTE: We use directConnection=true to connect to individual nodes because
-        the replica set is configured with internal Docker hostnames that are not
-        accessible from the host machine. This bypasses replica set discovery.
-        
+
         Args:
             replica_set_name: Name of the replica set
             nodes: List of NodeConfig objects with host and port info
