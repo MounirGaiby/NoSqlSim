@@ -20,7 +20,7 @@ setup:
 # Setup backend dependencies
 setup-backend:
     @echo "Installing backend dependencies..."
-    cd backend && pip install -r requirements.txt
+    cd backend && python3 -m venv venv && ./venv/bin/pip install -r requirements.txt
 
 # Setup frontend dependencies
 setup-frontend:
@@ -47,13 +47,13 @@ start:
 
 # Start backend server
 backend:
-    cd backend && python -m app.main
+    cd backend && ./venv/bin/python -m app.main
 
 # Start backend in background with log file
 start-backend:
     @mkdir -p .logs
     @echo "Starting backend server..."
-    cd backend && python -m app.main > ../.logs/backend.log 2>&1 &
+    cd backend && ./venv/bin/python -m app.main > ../.logs/backend.log 2>&1 &
     @echo "Backend started (PID saved, logs at .logs/backend.log)"
 
 # Start frontend dev server
@@ -114,22 +114,22 @@ logs-clear:
 # Run integration tests
 test:
     @echo "Running integration tests..."
-    cd backend && python -m pytest tests/integration/ -v --tb=short
+    cd backend && ./venv/bin/python -m pytest tests/integration/ -v --tb=short
 
 # Run integration tests with full output
 test-verbose:
     @echo "Running integration tests (verbose)..."
-    cd backend && python -m pytest tests/integration/ -v -s --tb=long
+    cd backend && ./venv/bin/python -m pytest tests/integration/ -v -s --tb=long
 
 # Run unit tests only
 test-unit:
     @echo "Running unit tests..."
-    cd backend && python -m pytest tests/unit/ -v --tb=short
+    cd backend && ./venv/bin/python -m pytest tests/unit/ -v --tb=short
 
 # Run all tests
 test-all:
     @echo "Running all tests..."
-    cd backend && python -m pytest tests/ -v --tb=short
+    cd backend && ./venv/bin/python -m pytest tests/ -v --tb=short
 
 # ============================================
 # CLEAN COMMANDS
@@ -217,7 +217,7 @@ docker-logs:
 # Format Python code
 fmt:
     @echo "Formatting Python code..."
-    cd backend && python -m black . 2>/dev/null || echo "black not installed, skipping..."
+    cd backend && ./venv/bin/python -m black . 2>/dev/null || echo "black not installed, skipping..."
 
 # Lint frontend code
 lint:
