@@ -79,6 +79,10 @@ async def create_partition(request: CreatePartitionRequest):
             partition_config=request.partition_config
         )
 
+        # Broadcast updated cluster state after partition creation
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
+
         return FailureResponse(
             success=True,
             failure_id=failure_state.failure_id,
@@ -100,6 +104,10 @@ async def heal_partition():
                 status_code=500,
                 detail="Failed to heal network partitions"
             )
+
+        # Broadcast updated cluster state after healing
+        cluster_state = await cluster_mgr.get_cluster_status()
+        await broadcaster.broadcast_cluster_state(cluster_state)
 
         return FailureResponse(
             success=True,
