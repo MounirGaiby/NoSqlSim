@@ -60,12 +60,95 @@ NoSqlSim is an open-source educational platform that simulates MongoDB replica s
 
 ## Prerequisites
 
-- **Python**: 3.11 or higher
-- **Node.js**: 18 or higher
 - **Docker Desktop**: Running with at least 4GB RAM allocated
 - **Operating System**: macOS, Linux, or Windows with WSL2
 
-## Installation & Setup
+### Option A: Quick Start with Nix (Recommended)
+
+If you have [Nix](https://nixos.org/download) and [direnv](https://direnv.net/) installed, everything is automatic:
+
+```bash
+# Clone and enter the project
+git clone <repository-url>
+cd NoSqlSim
+
+# Allow direnv (one-time)
+direnv allow
+
+# That's it! All dependencies are now available.
+```
+
+### Option B: Manual Prerequisites
+
+If not using Nix, you'll need:
+- **Python**: 3.11 to 3.13
+- **Node.js**: 18 or higher
+- **pnpm**: `npm install -g pnpm`
+- **just**: [Install just](https://github.com/casey/just#installation)
+
+---
+
+## Quick Start (Recommended)
+
+### Using `just` Commands
+
+The easiest way to run NoSqlSim is with the `just` command runner:
+
+```bash
+# 1. Setup everything (install dependencies)
+just setup
+
+# 2. Start the application (backend + frontend)
+just start
+
+# 3. Open http://localhost:5173 in your browser
+
+# 4. When done, stop everything
+just stop
+
+# 5. Clean up all resources (containers, networks, data)
+just clean
+```
+
+### All Available Commands
+
+| Command | Description |
+|---------|-------------|
+| `just setup` | Install all dependencies (Python + Node.js) |
+| `just start` | Start backend and frontend servers |
+| `just stop` | Stop all running servers |
+| `just logs` | View combined backend/frontend logs |
+| `just test` | Run integration tests |
+| `just clean` | Clean up all Docker resources |
+| `just status` | Show status of containers and servers |
+| `just help` | Show all available commands |
+
+---
+
+## Docker Deployment (Full Containerized)
+
+For a fully containerized deployment (great for demos or production-like testing):
+
+```bash
+# Start the full application in Docker
+just docker-start
+
+# View logs
+just docker-logs
+
+# Stop and clean up
+just docker-stop
+```
+
+This runs:
+- Backend API on **http://localhost:8000**
+- Frontend on **http://localhost:3000**
+
+---
+
+## Manual Installation & Setup
+
+If you prefer to set up manually without `just`:
 
 ### 1. Clone the Repository
 
@@ -87,10 +170,10 @@ pip install -r requirements.txt
 
 ```bash
 cd frontend
-npm install
+pnpm install  # or npm install
 ```
 
-## Running the Application
+## Running the Application (Manual)
 
 ### Start Backend Server
 
@@ -107,7 +190,7 @@ API Documentation: **http://localhost:8000/docs**
 
 ```bash
 cd frontend
-npm run dev
+pnpm dev  # or npm run dev
 ```
 
 Frontend runs on: **http://localhost:5173**
@@ -239,6 +322,10 @@ This behavior prevents split-brain scenarios and ensures data integrity.
 
 ```
 NoSqlSim/
+├── flake.nix                    # Nix development environment
+├── .envrc                       # direnv configuration
+├── justfile                     # Task runner commands
+│
 ├── backend/
 │   ├── app/
 │   │   ├── api/routes/          # API endpoints
@@ -251,7 +338,13 @@ NoSqlSim/
 │   │   ├── websocket/           # WebSocket handlers
 │   │   ├── config.py            # Configuration
 │   │   └── main.py              # Application entry
-│   ├── tests/                   # Test suite
+│   ├── docker/
+│   │   ├── templates/           # Docker Compose templates
+│   │   ├── docker-compose.app.yml  # Full app containerization
+│   │   ├── Dockerfile.backend   # Backend container
+│   │   └── Dockerfile.frontend  # Frontend container
+│   ├── tests/
+│   │   └── integration/         # Integration test suite
 │   └── requirements.txt         # Python dependencies
 │
 ├── frontend/
@@ -261,7 +354,10 @@ NoSqlSim/
 │   │   │   ├── ClusterTopology/
 │   │   │   ├── ControlPanel/
 │   │   │   ├── QueryInterface/
-│   │   │   └── CAPTheorem/
+│   │   │   ├── CAPTheorem/
+│   │   │   ├── Toast/           # Toast notifications
+│   │   │   ├── Skeleton/        # Loading states
+│   │   │   └── ConfirmDialog/   # Confirmation dialogs
 │   │   ├── hooks/               # Custom React hooks
 │   │   ├── types/               # TypeScript types
 │   │   ├── utils/               # Utility functions
@@ -317,10 +413,26 @@ NoSqlSim/
 
 ### Running Tests
 
+NoSqlSim includes comprehensive integration tests that run against real Docker containers:
+
 ```bash
+# Run all integration tests
+just test
+
+# Or manually:
 cd backend
-pytest tests/
+source venv/bin/activate
+pytest tests/integration/ -v --tb=short
 ```
+
+**Test Coverage:**
+- Cluster initialization and scaling
+- Query execution with various write/read concerns
+- Node failure simulation (crash/restore)
+- Network partition creation and healing
+- Automatic cleanup on test completion or failure
+
+> **Note:** Integration tests use ports 27100-27110 to avoid conflicts with the main application.
 
 ### Code Formatting
 
@@ -330,8 +442,8 @@ black app/
 isort app/
 
 # Frontend
-npm run lint
-npm run format
+pnpm lint
+pnpm format
 ```
 
 ### Building for Production
