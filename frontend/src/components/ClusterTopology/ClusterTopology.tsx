@@ -7,6 +7,7 @@ import {
   type AnimationState,
   type ReplicationFlow
 } from '../../utils/canvas'
+import { SkeletonCanvas } from '../Skeleton/Skeleton'
 import './ClusterTopology.css'
 
 interface ClusterTopologyProps {
@@ -14,9 +15,10 @@ interface ClusterTopologyProps {
   width?: number
   height?: number
   activePartitions?: PartitionInfo[]
+  isLoading?: boolean
 }
 
-export function ClusterTopology({ replicaSet, width: initialWidth = 700, height: initialHeight = 450, activePartitions = [] }: ClusterTopologyProps) {
+export function ClusterTopology({ replicaSet, width: initialWidth = 700, height: initialHeight = 450, activePartitions = [], isLoading = false }: ClusterTopologyProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const animationRef = useRef<number | null>(null)
@@ -61,7 +63,6 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
   })
 
   // Previous state tracking
-  const prevPrimaryRef = useRef<string | null>(null)
   const prevMemberIdsRef = useRef<string[]>([])
   const prevMemberStatesRef = useRef<string>('')
 
@@ -147,10 +148,22 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
       return
     }
 
+    // If both animations are disabled, use a slower update rate
+    const animationsEnabled = showHeartbeats || showReplication
+    const targetFps = animationsEnabled ? 60 : 2
+    const frameInterval = 1000 / targetFps
+
     let lastTime = performance.now()
 
     const animate = (currentTime: number) => {
       const deltaTime = currentTime - lastTime
+
+      // Throttle updates when animations are disabled
+      if (deltaTime < frameInterval) {
+        animationRef.current = requestAnimationFrame(animate)
+        return
+      }
+
       lastTime = currentTime
 
       setAnimationState(prev => {
@@ -208,8 +221,13 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    canvas.width = width
-    canvas.height = height
+    // High-DPI canvas support
+    const dpr = window.devicePixelRatio || 1
+    canvas.width = width * dpr
+    canvas.height = height * dpr
+    canvas.style.width = `${width}px`
+    canvas.style.height = `${height}px`
+    ctx.scale(dpr, dpr)
 
     if (!replicaSet) {
       const gradient = ctx.createRadialGradient(
@@ -299,13 +317,17 @@ export function ClusterTopology({ replicaSet, width: initialWidth = 700, height:
       </div>
 
       <div className="canvas-container" ref={containerRef}>
-        <canvas
-          ref={canvasRef}
-          className="topology-canvas"
-          onMouseMove={handleMouseMove}
-          onClick={handleClick}
-          onMouseLeave={() => setHoveredNode(null)}
-        />
+        {isLoading && !replicaSet ? (
+          <SkeletonCanvas width={width} height={height} />
+        ) : (
+          <canvas
+            ref={canvasRef}
+            className="topology-canvas"
+            onMouseMove={handleMouseMove}
+            onClick={handleClick}
+            onMouseLeave={() => setHoveredNode(null)}
+          />
+        )}
 
         {replicaSet && (
           <div className="animation-controls">

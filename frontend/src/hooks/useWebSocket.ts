@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { ReplicaSetStatus } from '../types/cluster'
+import { ClusterState } from '../types/cluster'
 
 interface WebSocketMessage {
   type: string
@@ -10,7 +10,7 @@ interface WebSocketMessage {
 interface UseWebSocketReturn {
   isConnected: boolean
   lastMessage: WebSocketMessage | null
-  clusterState: ReplicaSetStatus | null
+  clusterState: ClusterState | null
   sendMessage: (message: string) => void
   reconnect: () => void
   subscribeToNodeLogs: (nodeId: string, callback: (logs: string) => void) => void
@@ -24,13 +24,13 @@ const WS_URL = import.meta.env.DEV
 const RECONNECT_DELAY = 1000 // 1 second - faster reconnect
 const MAX_RECONNECT_ATTEMPTS = 15
 
-export function useWebSocket(onStateUpdate?: (state: ReplicaSetStatus) => void): UseWebSocketReturn {
+export function useWebSocket(onStateUpdate?: (state: ClusterState) => void): UseWebSocketReturn {
   const [isConnected, setIsConnected] = useState(false)
   const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null)
-  const [clusterState, setClusterState] = useState<ReplicaSetStatus | null>(null)
+  const [clusterState, setClusterState] = useState<ClusterState | null>(null)
 
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const shouldReconnectRef = useRef(true)
   const isConnectingRef = useRef(false)
@@ -83,7 +83,7 @@ export function useWebSocket(onStateUpdate?: (state: ReplicaSetStatus) => void):
 
         // Handle different message types
         if (message.type === 'cluster_state' && message.payload) {
-          const state = message.payload as ReplicaSetStatus
+          const state = message.payload as ClusterState
           setClusterState(state)
 
           // Call optional callback using ref to get latest value
