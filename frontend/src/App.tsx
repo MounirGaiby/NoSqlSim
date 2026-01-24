@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useCallback } from 'react'
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query'
 import { ClusterTopology } from './components/ClusterTopology/ClusterTopology'
 import { ControlPanel } from './components/ControlPanel/ControlPanel'
@@ -6,6 +6,7 @@ import { QueryInterface } from './components/QueryInterface/QueryInterface'
 import { CAPTheorem } from './components/CAPTheorem/CAPTheorem'
 import { ToastContainer, useToast } from './components/Toast/Toast'
 import { clusterApi } from './api/cluster'
+import { failuresApi } from './api/failures'
 import { useClusterStore } from './hooks/useClusterState'
 import { useWebSocket } from './hooks/useWebSocket'
 import './styles/global.css'
@@ -21,7 +22,37 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const { clusterState, setClusterState, setLoading, setError } = useClusterStore()
-  const { toasts, dismissToast } = useToast()
+  const { toasts, dismissToast, success: showSuccess, error: showError } = useToast()
+
+  // Node action handlers
+  const handleCrashNode = useCallback(async (nodeId: string) => {
+    try {
+      await failuresApi.crashNode({ node_id: nodeId, crash_type: 'hard' })
+      showSuccess('Node Crashed', `Node ${nodeId} has been crashed`)
+    } catch (err) {
+      showError('Crash Failed', err instanceof Error ? err.message : 'Unknown error')
+    }
+  }, [showSuccess, showError])
+
+  const handleRestoreNode = useCallback(async (nodeId: string) => {
+    try {
+      await failuresApi.restoreNode({ node_id: nodeId })
+      showSuccess('Node Restored', `Node ${nodeId} has been restored`)
+    } catch (err) {
+      showError('Restore Failed', err instanceof Error ? err.message : 'Unknown error')
+    }
+  }, [showSuccess, showError])
+
+  const handleDeleteNode = useCallback(async (nodeId: string) => {
+    const replicaSetName = Object.values(clusterState?.replica_sets || {})[0]?.set_name
+    if (!replicaSetName) return
+    try {
+      await clusterApi.removeNode(nodeId, replicaSetName)
+      showSuccess('Node Removed', `Node ${nodeId} removed from replica set`)
+    } catch (err) {
+      showError('Remove Failed', err instanceof Error ? err.message : 'Unknown error')
+    }
+  }, [clusterState, showSuccess, showError])
 
   // WebSocket for real-time updates
   const { isConnected, reconnect } = useWebSocket((state) => {
@@ -74,12 +105,6 @@ function AppContent() {
             <h1>NoSqlSim</h1>
             <p className="subtitle">MongoDB Replication & Consistency Simulator</p>
           </div>
-          <div className="header-right">
-            <div className="credits">
-              <p>Created by: Mounir Gaiby, Amine Banan | Prof Mohamed Hanine</p>
-              <p>3CI Big Data & AI | NoSQL Module | ISGA 2025/2026</p>
-            </div>
-          </div>
         </div>
       </header>
 
@@ -118,6 +143,9 @@ function AppContent() {
               height={380}
               activePartitions={clusterState?.active_partitions || []}
               isLoading={isLoading}
+              onCrashNode={handleCrashNode}
+              onRestoreNode={handleRestoreNode}
+              onDeleteNode={handleDeleteNode}
             />
 
             {hasCluster && firstReplicaSet && (
