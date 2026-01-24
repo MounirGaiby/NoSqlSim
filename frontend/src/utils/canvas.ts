@@ -42,6 +42,7 @@ export const CANVAS_COLORS = {
   connectionDefault: 'rgba(75, 85, 99, 0.4)',
   connectionActive: 'rgba(16, 163, 127, 0.6)',
   connectionReplication: '#10a37f',
+  connectionBlocked: 'rgba(239, 68, 68, 0.6)',
   text: '#e2e8f0',
   textMuted: '#94a3b8',
   textDark: '#1a1a2e',
@@ -194,8 +195,43 @@ export function drawConnection(
   x2: number,
   y2: number,
   isActive: boolean = false,
-  animationProgress: number = 0
+  animationProgress: number = 0,
+  isBlocked: boolean = false
 ) {
+  // Draw blocked connection (partitioned)
+  if (isBlocked) {
+    ctx.strokeStyle = CANVAS_COLORS.connectionBlocked
+    ctx.lineWidth = 2
+    ctx.setLineDash([8, 8])
+    ctx.beginPath()
+    ctx.moveTo(x1, y1)
+    ctx.lineTo(x2, y2)
+    ctx.stroke()
+    ctx.setLineDash([])
+
+    // Draw X mark in the middle to indicate blocked
+    const midX = (x1 + x2) / 2
+    const midY = (y1 + y2) / 2
+    const markSize = 8
+
+    ctx.strokeStyle = '#ef4444'
+    ctx.lineWidth = 3
+    ctx.beginPath()
+    ctx.moveTo(midX - markSize, midY - markSize)
+    ctx.lineTo(midX + markSize, midY + markSize)
+    ctx.moveTo(midX + markSize, midY - markSize)
+    ctx.lineTo(midX - markSize, midY + markSize)
+    ctx.stroke()
+
+    // Draw circle background for the X
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.2)'
+    ctx.beginPath()
+    ctx.arc(midX, midY, markSize + 6, 0, 2 * Math.PI)
+    ctx.fill()
+
+    return
+  }
+
   // Draw base connection
   ctx.strokeStyle = isActive ? CANVAS_COLORS.connectionActive : CANVAS_COLORS.connectionDefault
   ctx.lineWidth = isActive ? 3 : CONNECTION_WIDTH
@@ -535,11 +571,6 @@ export function drawClusterTopology(
       const node2Partition = nodePartitions?.get(positions[j].node.node_id)
       const inDifferentPartitions = node1Partition && node2Partition && node1Partition !== node2Partition
 
-      // Skip drawing connections between nodes in different partitions
-      if (inDifferentPartitions) {
-        continue
-      }
-
       const isActive = positions[i].node.health === 1 && positions[j].node.health === 1
       drawConnection(
         ctx,
@@ -547,7 +578,9 @@ export function drawClusterTopology(
         positions[i].y,
         positions[j].x,
         positions[j].y,
-        isActive
+        isActive && !inDifferentPartitions,
+        0,
+        inDifferentPartitions
       )
     }
   }
@@ -600,13 +633,27 @@ export function drawClusterTopology(
       else if (partition === 'B') groupB.push(pos)
     })
 
+    // Determine which group has majority (can accept writes)
+    const totalNodes = nodes.length
+    const groupAHasMajority = groupA.length > totalNodes / 2
+    const groupBHasMajority = groupB.length > totalNodes / 2
+
     // Draw partition group boundaries
     if (groupA.length > 0) {
-      drawPartitionBoundary(ctx, groupA, '#10b981', 'Group A')
+      drawPartitionBoundary(ctx, groupA, '#10b981', 'Group A', groupAHasMajority)
     }
     if (groupB.length > 0) {
-      drawPartitionBoundary(ctx, groupB, '#f59e0b', 'Group B')
+      drawPartitionBoundary(ctx, groupB, '#f59e0b', 'Group B', groupBHasMajority)
     }
+
+    // Draw WIP notice for partition visualization
+    ctx.save()
+    ctx.fillStyle = 'rgba(245, 158, 11, 0.9)'
+    ctx.font = '10px Inter, sans-serif'
+    ctx.textAlign = 'left'
+    ctx.textBaseline = 'top'
+    ctx.fillText('[WIP] Partition visualization has known issues', 10, 10)
+    ctx.restore()
   }
 
   // Draw nodes on top of connections
@@ -639,7 +686,8 @@ function drawPartitionBoundary(
   ctx: CanvasRenderingContext2D,
   nodes: NodePosition[],
   color: string,
-  label: string
+  label: string,
+  hasMajority: boolean = false
 ) {
   if (nodes.length === 0) return
 
@@ -655,23 +703,36 @@ function drawPartitionBoundary(
   // Draw dashed rectangle
   ctx.save()
   ctx.strokeStyle = color
-  ctx.lineWidth = 2
+  ctx.lineWidth = hasMajority ? 3 : 2
   ctx.setLineDash([10, 5])
-  ctx.globalAlpha = 0.6
+  ctx.globalAlpha = hasMajority ? 0.9 : 0.6
   ctx.strokeRect(minX, minY, maxX - minX, maxY - minY)
 
   // Draw filled background
   ctx.fillStyle = color
-  ctx.globalAlpha = 0.05
+  ctx.globalAlpha = hasMajority ? 0.1 : 0.05
   ctx.fillRect(minX, minY, maxX - minX, maxY - minY)
 
-  // Draw label
-  ctx.globalAlpha = 0.8
+  // Draw label with majority indicator
+  ctx.globalAlpha = 0.9
   ctx.fillStyle = color
   ctx.font = 'bold 12px Inter, sans-serif'
   ctx.textAlign = 'left'
   ctx.textBaseline = 'top'
-  ctx.fillText(label, minX + 10, minY + 10)
+  
+  const labelText = hasMajority ? `${label} (MAJORITY - Can Write)` : `${label} (Minority - Read Only)`
+  ctx.fillText(labelText, minX + 10, minY + 10)
+
+  // Draw majority badge icon
+  if (hasMajority) {
+    ctx.fillStyle = '#10b981'
+    ctx.font = '14px sans-serif'
+    ctx.fillText('\u2713', minX + 10 + ctx.measureText(labelText).width + 8, minY + 8)
+  } else {
+    ctx.fillStyle = '#ef4444'
+    ctx.font = '14px sans-serif'
+    ctx.fillText('\u26A0', minX + 10 + ctx.measureText(labelText).width + 8, minY + 8)
+  }
 
   ctx.restore()
 }
