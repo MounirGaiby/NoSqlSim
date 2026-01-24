@@ -4,6 +4,7 @@ import { ClusterTopology } from './components/ClusterTopology/ClusterTopology'
 import { ControlPanel } from './components/ControlPanel/ControlPanel'
 import { QueryInterface } from './components/QueryInterface/QueryInterface'
 import { CAPTheorem } from './components/CAPTheorem/CAPTheorem'
+import { ToastContainer, useToast } from './components/Toast/Toast'
 import { clusterApi } from './api/cluster'
 import { useClusterStore } from './hooks/useClusterState'
 import { useWebSocket } from './hooks/useWebSocket'
@@ -20,9 +21,10 @@ const queryClient = new QueryClient({
 
 function AppContent() {
   const { clusterState, setClusterState, setLoading, setError } = useClusterStore()
+  const { toasts, dismissToast } = useToast()
 
   // WebSocket for real-time updates
-  const { isConnected, clusterState: wsClusterState, reconnect } = useWebSocket((state) => {
+  const { isConnected, reconnect } = useWebSocket((state) => {
     // Update store when WebSocket receives cluster state
     // state is already the full ClusterState object
     setClusterState(state)
@@ -115,6 +117,7 @@ function AppContent() {
               width={700}
               height={380}
               activePartitions={clusterState?.active_partitions || []}
+              isLoading={isLoading}
             />
 
             {hasCluster && firstReplicaSet && (
@@ -182,6 +185,8 @@ function AppContent() {
       <footer className="app-footer">
         <p>NoSqlSim v1.0.0 - Educational Tool for MongoDB Concepts</p>
       </footer>
+
+      <ToastContainer toasts={toasts} onDismiss={dismissToast} />
     </div>
   )
 }

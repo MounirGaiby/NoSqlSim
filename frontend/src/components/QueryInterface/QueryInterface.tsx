@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { queriesApi } from '../../api/queries'
 import { clusterApi } from '../../api/cluster'
+import { useToast } from '../Toast/Toast'
 import {
   QueryRequest,
   QueryResult,
@@ -17,6 +18,7 @@ interface QueryInterfaceProps {
 
 export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
   const queryClient = useQueryClient()
+  const { success, error: showError } = useToast()
 
   // Form state
   const [database, setDatabase] = useState('testdb')
@@ -75,10 +77,10 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
   const insertTestDataMutation = useMutation({
     mutationFn: () => queriesApi.insertTestData(replicaSetName),
     onSuccess: () => {
-      alert('Test data inserted successfully!')
+      success('Test data inserted', '10 sample documents added to testdb.testcol')
     },
-    onError: (error: any) => {
-      alert(`Failed to insert test data: ${error.message}`)
+    onError: (err: any) => {
+      showError('Failed to insert test data', err.message)
     },
   })
 
@@ -133,8 +135,8 @@ export function QueryInterface({ replicaSetName }: QueryInterfaceProps) {
       }
 
       executeMutation.mutate(request)
-    } catch (error: any) {
-      alert(`Invalid JSON: ${error.message}`)
+    } catch (err: any) {
+      showError('Invalid JSON', err.message)
     }
   }
 

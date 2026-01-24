@@ -3,6 +3,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { clusterApi } from '../../api/cluster'
 import { failuresApi } from '../../api/failures'
 import { useWebSocket } from '../../hooks/useWebSocket'
+import { useToast } from '../Toast/Toast'
+import { ConfirmDialog } from '../ConfirmDialog/ConfirmDialog'
 import type { InitClusterRequest, MemberStatus } from '../../types/cluster'
 import './ControlPanel.css'
 
@@ -15,6 +17,7 @@ interface ControlPanelProps {
 export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: ControlPanelProps) {
   const queryClient = useQueryClient()
   const { subscribeToNodeLogs, unsubscribeFromNodeLogs, isConnected } = useWebSocket()
+  const { success, error: showError } = useToast()
   const [showInitForm, setShowInitForm] = useState(!hasCluster)
   const [selectedNode, setSelectedNode] = useState<string>('')
 
@@ -30,6 +33,23 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
   // Partition state
   const [partitionGroupA, setPartitionGroupA] = useState<string[]>([])
   const [partitionGroupB, setPartitionGroupB] = useState<string[]>([])
+
+  // Confirmation dialog state
+  const [confirmDialog, setConfirmDialog] = useState<{
+    isOpen: boolean
+    title: string
+    message: string
+    variant: 'danger' | 'warning' | 'info'
+    onConfirm: () => void
+  }>({
+    isOpen: false,
+    title: '',
+    message: '',
+    variant: 'danger',
+    onConfirm: () => {},
+  })
+
+  const closeConfirmDialog = () => setConfirmDialog(prev => ({ ...prev, isOpen: false }))
 
   // Form state
   const [formData, setFormData] = useState<InitClusterRequest>({
@@ -118,12 +138,12 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cluster-status'] })
-      alert('Network partition created successfully!')
+      success('Network partition created', `Group A: ${partitionGroupA.join(', ')} | Group B: ${partitionGroupB.join(', ')}`)
       setPartitionGroupA([])
       setPartitionGroupB([])
     },
-    onError: (error: any) => {
-      alert(`Failed to create partition: ${error.message}`)
+    onError: (err: any) => {
+      showError('Failed to create partition', err.message)
     },
   })
 
@@ -132,10 +152,10 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
     mutationFn: () => failuresApi.healPartitions(),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cluster-status'] })
-      alert('Network partitions healed successfully!')
+      success('Network partitions healed', 'All nodes can now communicate')
     },
-    onError: (error: any) => {
-      alert(`Failed to heal partitions: ${error.message}`)
+    onError: (err: any) => {
+      showError('Failed to heal partitions', err.message)
     },
   })
 
@@ -353,7 +373,20 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
 
             <div className="button-group">
               <button
-                onClick={() => selectedNode && crashNodeMutation.mutate(selectedNode)}
+                onClick={() => {
+                  if (selectedNode) {
+                    setConfirmDialog({
+                      isOpen: true,
+                      title: 'Crash Node',
+                      message: `Are you sure you want to crash node "${selectedNode}"? This will stop the container and may trigger an election if it is the primary.`,
+                      variant: 'danger',
+                      onConfirm: () => {
+                        crashNodeMutation.mutate(selectedNode)
+                        closeConfirmDialog()
+                      },
+                    })
+                  }
+                }}
                 disabled={!selectedNode || crashNodeMutation.isPending}
                 className="btn-danger"
               >
@@ -369,7 +402,20 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
               </button>
 
               <button
-                onClick={() => selectedNode && removeNodeMutation.mutate(selectedNode)}
+                onClick={() => {
+                  if (selectedNode) {
+                    setConfirmDialog({
+                      isOpen: true,
+                      title: 'Remove Node',
+                      message: `Are you sure you want to permanently remove node "${selectedNode}" from the cluster? This action cannot be undone.`,
+                      variant: 'danger',
+                      onConfirm: () => {
+                        removeNodeMutation.mutate(selectedNode)
+                        closeConfirmDialog()
+                      },
+                    })
+                  }
+                }}
                 disabled={!selectedNode || removeNodeMutation.isPending || nodes.length <= 1}
                 className="btn-danger"
               >
@@ -506,8 +552,8 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
                     try {
                       const data = await clusterApi.getNodeLogs(logsNodeId)
                       setLogs(data.logs)
-                    } catch (error: any) {
-                      alert(`Failed to fetch logs: ${error.message}`)
+                    } catch (err: any) {
+                      showError('Failed to fetch logs', err.message)
                     }
                   }
                 }}
@@ -574,6 +620,17 @@ export function ControlPanel({ hasCluster, replicaSetName, nodes = [] }: Control
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        isOpen={confirmDialog.isOpen}
+        title={confirmDialog.title}
+        message={confirmDialog.message}
+        variant={confirmDialog.variant}
+        onConfirm={confirmDialog.onConfirm}
+        onCancel={closeConfirmDialog}
+        confirmLabel="Confirm"
+        cancelLabel="Cancel"
+      />
     </div>
   )
 }
